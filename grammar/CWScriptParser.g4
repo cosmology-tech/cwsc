@@ -7,7 +7,8 @@ options {
 // Files contain 1 or more topLevelStatement
 sourceFile: topLevelStmt* EOF;
 
-topLevelStmt: importStmt | contractDefn | interfaceDefn | constStmt_;
+topLevelStmt:
+	importStmt | contractDefn | interfaceDefn | constStmt_;
 
 // Contract Block
 contractDefn:
@@ -133,7 +134,7 @@ structDefn:
 typeAliasDefn: TYPE (name = ident) EQ (value = typeExpr);
 
 // Functions
-fnDefn: FN (name = ident) (fallible=BANG)? params=fnParams (ARROW retTy=typeExpr)? body=block;
+fnDefn: FN (name = ident) (fallible=BANG)? params=fnParams (ARROW retTy=typeExpr) body=block;
 
 annot: AT (path = typePath) (LPAREN (args+=arg)? RPAREN)?;
 

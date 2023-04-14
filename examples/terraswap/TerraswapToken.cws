@@ -160,7 +160,7 @@ contract TerraswapToken implements CW20 {
     $state.balances[info.sender] -= amount // checked_sub automatically called
     $state.token_info.total_supply -= amount
 
-    emit #Burn($info.sender, amount)
+    emit Burn($info.sender, amount)
   }
 
   exec #Mint(recipient: String, amount: Int) {
@@ -226,7 +226,7 @@ contract TerraswapToken implements CW20 {
 
     allow.allowance += amount
     $state.allowance[msginfo.sender, spender_addr] = allow
-    emit #IncreaseAllowance($info.sender, spender, amount)
+    emit IncreaseAllowance($info.sender, spender, amount)
   }
 
   exec #decrease_allowance(spender: String, amount: Int, expires?: Expiration) {
@@ -255,7 +255,7 @@ contract TerraswapToken implements CW20 {
       $state.allowances[$info.sender, spender_addr]::remove!()
     }
 
-    emit #DecreaseAllowance($info.sender, spender, amount)
+    emit DecreaseAllowance($info.sender, spender, amount)
   }
 
   exec #transfer_from(owner: String, recipient: String, amount: Int) {

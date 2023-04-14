@@ -27,8 +27,6 @@
     "cwsc": "ts-node src/cli.ts",
     "ir": "ts-node src/ir.ts",
     "fw": "ts-node src/filewriter.ts",
-    "cwam": "ts-node src/cwam.ts",
-    "model": "ts-node src/model.ts",
     "types": "ts-node src/typesystem.ts",
     "size": "size-limit",
     "analyze": "size-limit --why",
