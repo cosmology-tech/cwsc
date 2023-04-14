@@ -20,9 +20,34 @@ export class AST {
   }
 
   static isNode(x: any): x is AST {
-    console.log(x instanceof AST);
     return x instanceof AST;
   }
+
+	public toJSON(): any {
+		let res: any = {};
+		for (const key of Object.keys(this)) {
+			console.log(key);
+			//@ts-ignore
+			if (key === '$parent') {
+				continue;
+			}
+
+			// @ts-ignore
+			if (AST.isNode(this[key])) {
+				// @ts-ignore
+				res[key] = this[key].toJSON();
+				// @ts-ignore
+			} else if (Array.isArray(this[key])) {
+				// @ts-ignore
+				res[key] = this[key].map((x) => x.toJSON());
+			} else {
+				// @ts-ignore
+				res[key] = this[key];
+			}
+		}
+		res['$type'] = this.constructor.name;
+		return res;
+	}
 }
 
 export class List<T extends AST = AST> extends AST {
@@ -33,6 +58,17 @@ export class List<T extends AST = AST> extends AST {
   protected setParentForChildren(): void {
     this.$children.forEach((x) => x.setParent(this));
   }
+
+	static empty<T extends AST = AST>(): List<T> {
+		return new List<T>([]);
+	}
+
+	public toJSON(): any {
+		return {
+			$type: this.constructor.name,
+			$children: this.$children.map((x) => x.toJSON())
+		}
+	}
 }
 
 export class Ident extends AST {
@@ -48,7 +84,7 @@ export class ContractDefn extends AST {
     public name: Ident,
     public body: ContractBlock,
     public base: TypePath | null = null,
-    public interfaces: TypePath[] = []
+    public interfaces: List<TypePath> = List.empty()
   ) {
     super();
   }
@@ -159,9 +195,9 @@ export class EventDefn extends AST {
 }
 export class EventDefnBlock extends List<StructDefn> {}
 
-export class StateDefnBlock extends List<StateDefnItem | StateDefnMap> {}
+export class StateDefnBlock extends List<StateItemDefn | StateMapDefn> {}
 
-export class StateDefnItem extends AST {
+export class StateItemDefn extends AST {
   constructor(
     public name: Ident,
     public ty: TypeExpr,
@@ -171,7 +207,7 @@ export class StateDefnItem extends AST {
   }
 }
 
-export class StateDefnMap extends AST {
+export class StateMapDefn extends AST {
   constructor(
     public name: Ident,
     public mapKeys: MapKeyDefn[],
@@ -183,13 +219,13 @@ export class StateDefnMap extends AST {
 }
 
 export class MapKeyDefn extends AST {
-  constructor(public ty: TypeExpr, public name: Ident | null = null) {
+  constructor(public name: Ident | null, public ty: TypeExpr) {
     super();
   }
 }
 
 export class InstantiateDefn extends AST {
-  constructor(public params: Param[], public body: Block) {
+  constructor(public params: List<Param> = List.empty(), public body: ContractBlock) {
     super();
   }
 }
@@ -203,7 +239,7 @@ export class InstantiateDecl extends AST {
 export class ExecDefn extends AST {
   constructor(
     public name: Ident,
-    public params: Param[],
+    public params: List<Param> = List.empty(),
     public body: Block,
     public tup: boolean = false
   ) {
@@ -213,7 +249,7 @@ export class ExecDefn extends AST {
 export class ExecDecl extends AST {
   constructor(
     public name: Ident,
-    public params: Param[],
+    public params: List<Param>,
     public tup: boolean = false
   ) {
     super();
@@ -223,9 +259,9 @@ export class ExecDecl extends AST {
 export class QueryDefn extends AST {
   constructor(
     public name: Ident,
-    public params: Param[],
+    public params: List<Param> = List.empty(),
+		public retTy: TypeExpr | null,
     public body: Block,
-    public retTy: TypeExpr | null = null,
     public tup: boolean = false
   ) {
     super();
@@ -257,8 +293,8 @@ export class ReplyDefn extends AST {
 export class FnDefn extends AST {
   constructor(
     public name: Ident,
-    public params: Param[],
-    public retTy: TypeExpr,
+    public params: List<Param>,
+    public retTy: TypeExpr | null,
     public body: Block,
     public fallible: boolean = false
   ) {
@@ -274,7 +310,7 @@ export class LetStmt extends AST {
 
 export class LetBinding extends AST {
   constructor(
-    public symbols: Ident[],
+    public symbols: List<Ident>,
     public isStruct: boolean = false,
     public ty: TypeExpr | null = null
   ) {
@@ -295,8 +331,8 @@ export class Annotation extends AST {
 }
 
 export class Annotated extends List<Annotation> {
-  constructor(public expr: Expr) {
-    super();
+  constructor(public $children: Annotation[], public expr: Expr) {
+    super($children);
   }
 }
 

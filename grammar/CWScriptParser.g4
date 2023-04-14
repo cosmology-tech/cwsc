@@ -14,7 +14,7 @@ topLevelStmt:
 contractDefn:
     CONTRACT (name = ident) (
         EXTENDS (base=typePath)
-    )? (IMPLEMENTS (interfaces+=typePath))? body=contractBlock;
+    )? (IMPLEMENTS (interfaces+=typePath))? (body=contractBlock);
 
 // Interface
 interfaceDefn:
@@ -27,11 +27,11 @@ contractBlock: LBRACE (body+=contractItem)* RBRACE;
 // Import Statement
 importStmt:
 	// import * from "..."
-    IMPORT MUL FROM (src = StringLiteral) # ImportAllStmt
+    IMPORT MUL FROM (src = StringLit) # ImportAllStmt
     // import { a } from "..."
     | IMPORT (
         (LBRACE (items += ident) (COMMA items += ident)* RBRACE)
-    ) FROM (src = StringLiteral) # ImportItemsStmt;
+    ) FROM (src = StringLit) # ImportItemsStmt;
 
 contractItem:
     typeDefn
@@ -134,7 +134,7 @@ structDefn:
 typeAliasDefn: TYPE (name = ident) EQ (value = typeExpr);
 
 // Functions
-fnDefn: FN (name = ident) (fallible=BANG)? params=fnParams (ARROW retTy=typeExpr) body=block;
+fnDefn: FN (name = ident) (fallible=BANG)? params=fnParams (ARROW retTy=typeExpr)? body=block;
 
 annot: AT (path = typePath) (LPAREN (args+=arg)? RPAREN)?;
 
