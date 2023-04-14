@@ -4,6 +4,21 @@ Welcome to cwsc, the standard reference implementation compiler for CWScript, a 
 
 cwsc is written in TypeScript and requires Node.js v16 or later.
 
+<!-- TOC -->
+* [`cwsc`: CWScript Compiler](#cwsc-cwscript-compiler)
+  * [Features](#features)
+  * [Installation](#installation)
+
+  * [Usage](#usage)
+  * [Examples](#examples)
+    * [Hello World](#hello-world)
+    * [Simple Token Contract](#simple-token-contract)
+    * [Proxy Contract](#proxy-contract)
+    * [AtomicOrderExample (Injective Protocol)](#atomicorderexample-injective-protocol)
+  * [License](#license)
+  * [Copyright](#copyright)
+<!-- TOC -->
+
 ## Features
 - Simplified syntax, reducing syntactic noise and enhancing readability
 - High-level translation to idiomatic CosmWasm Rust patterns
