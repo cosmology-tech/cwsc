@@ -62,7 +62,7 @@ contract HelloWorld {
 contract MyToken {
     state {
         total_supply: Uint128,
-        balances: Map<Address, Uint128>
+        balances[Address]: Uint128 = 0
     }
 
     #instantiate(initial_supply: Uint128) {
