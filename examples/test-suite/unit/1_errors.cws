@@ -1,0 +1,12 @@
+contract TestContractErrors extends BaseContract implements Base_Contract, Hello {
+
+    error SingleErrorUnit
+    error SingleErrorTuple(String, Uint128)
+    error SingleErrorStruct(item: Uint128, user: Addr)
+
+    error {
+        GroupedErrorUnit
+        GroupedErrorTuple(String, Uint128)
+        GroupedErrorStruct(item: Uint128, user: Addr)
+    }
+}

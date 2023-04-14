@@ -1,0 +1,41 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug CWScript Grammar",
+      "type": "antlr-debug",
+      "request": "launch",
+      "input": "examples/cws-cw20/src/cw20-base.cws",
+      "grammar": "grammar/CWScriptParser.g4",
+      "startRule": "sourceFile",
+      "printParseTree": true,
+      "visualParseTree": true
+    },
+    // {
+    //   "name": "Debug CWSpec Grammar",
+    //   "type": "antlr-debug",
+    //   "request": "launch",
+    //   "input": "examples/cws-cw20/src/cw20-base.cwspec",
+    //   "grammar": "grammar/CWSpecParser.g4",
+    //   "startRule": "cwspec",
+    //   "printParseTree": true,
+    //   "visualParseTree": true
+    // }
+    {
+      "name": "Debug CWScript Compiler",
+      "type": "node",
+      "request": "launch",
+      "runtimeArgs": ["--nolazy", "-r", "ts-node/register"],
+      "args": ["src/cli.ts", "examples/cws-cw20/src/cw20-base.cws"],
+      "cwd": "${workspaceFolder}",
+      "internalConsoleOptions": "openOnSessionStart",
+      "skipFiles": ["<node_internals>/**", "node_modules/**"],
+      "env": {
+        "TS_NODE_PROJECT": "${workspaceFolder}/tsconfig.json"
+      }
+    }
+  ]
+}

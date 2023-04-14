@@ -1,0 +1,40 @@
+interface HasSomething {
+
+    state {
+    	something: struct Something {
+        	the_thing: U123
+    	}
+	}
+}
+
+interface HasOwner {
+    state {
+   		owner: String
+   	}
+
+    query #get_owner() -> struct {
+        owner: String
+    }
+}
+
+
+contract EmptyContract {}
+
+contract ImplHasSomething implements HasSomething {
+    query #get_something() {
+		return {
+			something: state.something
+		}
+    }
+}
+
+contract ImplHasOwner implements HasOwner {
+    query #get_owner() {
+    	return {
+			owner: state.owner
+		}
+    }
+}
+
+contract ImplHasSomethingAndOwner extends ImplHasSomething {
+}

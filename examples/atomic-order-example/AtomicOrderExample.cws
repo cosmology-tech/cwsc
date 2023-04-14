@@ -1,0 +1,100 @@
+import { SubaccountId, MarketId } from "injective/types"
+import { FPDecimal } from "injective/math"
+import { CW2 } from "standards/cw2"
+
+const CONTRACT_NAME = "crates.io:atomic-order-example"
+const CONTRACT_VERSION = "0.0.1"
+
+contract AtomicOrderExample extends CW2 {
+
+  state {
+    config: struct ContractConfigState {
+      market_id: MarketId,
+      owner: Address,
+      contract_subaccount_id: SubaccountId,
+      base_denom: String,
+      quote_denom: String
+    }
+    swap_operation_state: struct SwapCacheState {
+      sender_address: String,
+      deposited_amount: Coin
+    }
+  }
+
+  #instantiate(
+    market_id: MarketId
+  ) {
+
+    let market = try {
+      query! Exchange.#market(market_id)
+    } else fail! "Market with id: {market_id} not found"
+
+    let config = ContractConfigState {
+      market_id,
+      base_denom: market.base_denom,
+      quote_denom: market.quote_denom,
+      owner: $info.sender,
+      contract_subaccount_id: SubaccountId($env.contract.address, 0),
+    }
+
+    CW2.set_contract_version!($, CONTRACT_NAME, CONTRACT_VERSION)
+
+    // we've changed it to "config"
+    $state.config = config
+    emit event(method="instantiate", owner=$info.sender) // anonymous event
+  }
+
+  reply.success handle_atomic_order() {
+    let dec_scale_factor = FPDecimal(1000000000000000000)
+    let order_response = Exchange.#create_spot_market_order::parse_response!($data)
+
+    let trade_data = order_response.results ?? fail! "No trade data in order response"
+    let quantity = FPDecimal!(trade_data.quantity)
+    let price = FPDecimal!(trade_data.price)
+    let fee = FPDecimal!(trade_data.fee)
+
+    let { config, cache } = $state
+    let contract_address = $env.contract.address
+    let subaccount_id = config.contract_subaccount_id
+    let cache = $state.cache
+    let purchased_coins = coin(quantity, config.base_denom)
+    let pair = quantity * price + fee
+    let leftover = cache.deposited_amount.amount - paid
+
+
+    exec! Exchange.#withdraw(contract_address, subaccount_id, purchased_coins)
+    exec! Exchange.#withdraw(contract_address, subaccount_id, leftover_coins)
+    exec! Bank.#send(cache.sender_address, [purchased_coins, leftover_coins])
+  }
+
+  exec #swap_spot(quantity: FPDecimal, price: FPDecimal) {
+    let { config } = $state
+    let contract = $env.contract.address
+    let subaccount_id = config.contract_subaccount_id
+    let min_deposit = price quantity
+
+    if $info.funds.is_empty() {
+      fail! "No funds deposited!"
+    }
+
+    let message_deposit = FPDecimal!($info.funds[0].amount)
+
+    if message_deposit < min_deposit {
+      fail! "Deposit: {message_deposit} below min_deposit: {min_deposit}"
+    }
+
+    let order = SpotOrder(
+      price, quantity, OrderType.#BuyAtomic, config.market_id, subaccount_id, contract
+    )
+
+    let coins = $info.funds[0]
+
+    $state.swap_operation_state = SwapCacheState($info.sender, coins)
+
+    exec! Exchange.#deposit(contract, subaccount_id, coins)
+
+    @reply.success(handle_atomic_order)
+    exec! Exchange.create_spot_market_order(contract, order)
+  }
+
+}

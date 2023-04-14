@@ -1,0 +1,50 @@
+contract MyTestContract {
+
+    event Instantiate(owner: Addr, count: u32)
+    event Call(method: String)
+
+    error Unauthorized{}
+
+    state {
+        count: u32
+        owner: Addr
+    }
+
+    instantiate(count: u32) {
+        state.count = count
+        state.owner = msg.sender 
+
+        emit Instantiate(msg.sender, count)
+    }
+
+    exec increment() {
+        if count == None {
+            state.count += 1
+        } else {
+            state.count += count
+        }
+
+        emit Call("increment")
+    }
+
+    exec reset(count: u32) {
+        if msg.sender != state.owner {
+            fail Unauthorized{}
+        }
+
+        state.count = count
+        emit Call("reset")
+    }
+
+    query get_count() -> struct _ { count: u32 } {
+        return _ {
+            count: state.count
+        }
+    }
+
+    query get_owner() -> struct _ { owner: Addr } {
+        return _ {
+            owner: state.owner 
+        }
+    }
+}

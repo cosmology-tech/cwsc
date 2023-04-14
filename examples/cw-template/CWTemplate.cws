@@ -1,0 +1,33 @@
+contract CWTemplate {
+
+  state {
+    count: U64
+    owner: Address
+  }
+
+  #instantiate(count: U64) {
+    state.count = count
+    state.owner = msg.sender
+  }
+
+  exec #increment() {
+    $state.count -= 1
+  }
+
+  exec #reset(count: U64) {
+    $state.count = count
+  }
+
+  query #get_count() -> struct { count: U64 } {
+    return {
+      count: $state.count
+    }
+  }
+
+  query #get_owner() -> struct { owner: Address } {
+    return {
+      owner: $state.owner
+    }
+  }
+
+}

@@ -1,0 +1,339 @@
+contract TerraswapPair {
+
+  // we declare our state variables here
+  state {
+    pair_info: PairInfo // item
+  }
+
+  // we define a reply handler, which almost looks like a function definition
+  // or exec #z, etc.
+  // CWScript extracts away the concept of setting an id and then routing it
+  // to the right handleing logical.
+  // we don't provide any arguments because reply functions accept all of their
+  //  this is becase it is uinerarable
+  reply.success register_pair() {
+    let { tmp_pair_info } = $state
+    // parse_response!
+    // the parse_response!() function expects the context variable "$"
+    let response = Wasm.#instantiate::parse_response!($data)q
+    let response = instantiate #CW20::parse_response!($data)
+
+    instantiate! #CW20(1, 2, 3) {
+   		code_id: 1,
+   		label: "admin"
+    }
+
+    let pair_contract = response.address
+    let pair_info = query! TerraswapPair(pair_contract).#pair() ~.token_supply
+
+    $state.pairs = PairInfo(
+      Address.Canonical!(pair_info.liquidity_token),
+      Address.Canonical!(pair_info.liquidity_token),
+      asset_infos=tmp_pair_info.asset_infos,
+      asset_decimals=tmp_pair_info.asset_decimals
+    )
+  }
+
+  #instantiate(
+    asset_infos: AssetInfo[2], // list of 2
+    token_code_id: U64,
+    asset_decimals: U8[2]
+  ) {
+    // $xyz lets you access state variables
+    // inside you contract, you're allowed to use $xyz and the magic $ variable which contains
+    // the context relevant to your code.
+    $state.pair_info = PairInfo {
+      contract_addr: $env.contract.address,
+      liquidity_token: Address.empty(),
+      asset_infos: [
+        String!(msg.asset_infos[0]), // force the conversion
+        String!(msg.asset_infos[1])
+      ]
+    }
+
+    @gas_limit(500000)
+    @reply.on_success(register_pairs)
+
+    #CosmWasm.CW20()
+
+    instantiate! #CW20(
+      12, "terraswap liquidity token", "uLP", 6, [], MinterResponse($env.contract.address)
+    ) {
+      funds: "1000000uluna", // it's going to be like terra.js -- automatic conversion
+      label: "lp",
+      // msg: #CW20() ... otherwise we could put it here
+    }
+
+  }
+
+  // now onto execute msgs
+  // the receive is special, because it captures the inner message
+  // like ExecuteMsg::Receive(CW20ReceiveMsg)
+  // rather than ExecuteMsg::Receive{ msg: CW20ReceiveMsg }
+  // we therefore just indicate it to the compiler to compile as a Tuple Struct Variant with *
+  exec *#receive(msg: CW20.receive) {
+    let msgbody = msg.msg
+    // the "is" operator does a typecheck
+    if msgbody is CW20.Hook.Swap {
+      // within here, the editor should infer that msgbody is CW20.Hook.Swap type
+      let { belief_price, max_spread, to } = msg.msg
+      let authorized = false
+      let config = pair_info
+      // you'll notice that "query_pools!" is the name of the function itself
+      // functions that end in ! are allowed to have fail statements or call other functions
+      // that end in !. These are called "fallible" functions. You can recover from a fallible
+      // function with an except .. else clause.
+      for pool in pools {
+        if to is AssetInfo.Token {
+          if contract_addr == $info.sender {
+            authorized = true
+          }
+        }
+      }
+
+      if not authorized {
+        fail! Unauthorized()
+      }
+
+      let to_addr = if to? {
+      	Address.validate!(to)
+      } else none
+
+      // dangerous -- might give user a grave warning if they try do delegate context
+      delegate_exec! #swap(
+        Address(msg.sender),
+        Asset(AssetInfo.Token(contract_addr), msg.amount),
+        belief_price,
+        max_spread,
+        to_addr
+      )
+    } else if msgbody is CW20.Hook.WithdrawLiquidity {
+      let config = $state.pair_info
+      if sender != config.liquidity_token {
+        fail! Unauthorized()
+      }
+
+      let sender_addr = Address.validate!(msg.sender)
+      // must be at the end, otherwise it would create a CWScript-internal re-entrancy risk
+      exec! #withdraw_liquidity(sender_addr, msg.amount)
+    }
+  }
+
+  fn query_pools($state, pair_info: PairInfo, addr: Address) {
+    pair_info.asset_infos.map!(|ai| Asset(ai, query_pool!($, ai, addr)))
+  }
+
+  fn query_pool!($state, asset_info: AssetInfo, addr: Address) -> U128 {
+    if asset_info is AssetInfo.Token {
+      let res = query! Bank.#balance(asset_info.contract_addr, $state.balance[addr])
+      res.balance
+    } else if asset_info is AssetInfo.NativeToken {
+      let res = query! Bank.#balance(addr, asset_info.denom)
+      res.amount.amount
+    } else {
+      0
+    }
+  }
+
+  // if $ is passed, all context variables from the passer are available
+  fn assert_sent_native_balancetoken_balance!($state) {
+    for asset in assets {
+      if asset is AssetInfo.NativeToken {
+        let coin = $info.funds.find(|x| x.denom == denom)
+        if coin? {
+          if asset.amount != coin.amount {
+            fail! "Native token balance mismatch between the argument and the transferred"
+          }
+        }
+      } else {
+        if asset.amount != 0 {
+		  fail! "Native token balance mismatch between the argument and the transferred"
+	 	}
+      }
+    }
+  }
+
+  exec #provide_liquidity(assets: Asset[2], slippage_tolerance?: Dec, receiver?: String) {
+    assert_sent_native_token_balance!($state)
+    let pair_info = $state.pair_info
+    let pools = $.query_pools!(pair_info, $env.contract.address)
+
+    let deposits = [
+      assets.find(|a| a.info == pools[0].info).map(|a| a.amount) ?? fail! "wrong asset info is given",
+      assets.find(|a| a.info == pools[1].info).map(|a| a.amount) ?? fail! "wrong asset info is given"
+    ]
+
+    for [i, pool] in pools.enumerate() {
+      if pool.info is AssetInfo.#Token {
+      	let { contract_addr } = pool.info
+        $response.msgs += exec CW20(contract_addr)
+        	.#transfer_from($info.sender, $env.contract.address, deposits[i])
+      } else {
+        pool.amount -= deposits[i]
+      }
+    }
+
+    // TODO: assert slippage tolerance
+    let { liquidity_token } = pair_info
+    // the & acts like a grouping operator, like $ in Haskell
+    let total_share = query! $.token_info() ~ .total_supply
+
+    let share = if total_share == 0 {
+      let deposit0 = U256!(deposits[0])
+      let deposit1 = U256!(deposits[1])
+
+      let share = U128!(
+        Dec256.ratio!(deposit0 * deposit1, 1).sqrt() * U256!(1)
+      ) ?? fail! ConversionError()
+    } else {
+      U128.min(
+        deposits[0].multiply_ratio(total_share, pools[0].amount),
+        deposits[1].multiply_ratio(total_share, pools[1].amount)
+      )
+    }
+
+    if share == 0 {
+      fail! InvalidZeroAmount()
+    }
+
+    let receiver = receiver ?? $info.sender
+    emit ProvideLiquidity($info.sender, receiver, assets[0], assets[1], share)
+    exec! CW20(pair_info.liquidity_token).#mint(receiver, amount)
+  }
+
+  fn compute_swap!(offer_pool: U128, ask_pool: U128, offer_amount: U128) -> [U128, U128, U128] {
+    let offer_pool = U256!(offer_pool)
+    let ask_pool = U256!(ask_pool)
+    let offer_amount = U256!(offer_amount)
+
+    let commission_rate = Dec256!(COMMISSION_RATE)
+    let cp = offer_pool.mul!(ask_pool)
+    let return_amount = (
+      Dec256.ratio!(ask_pool, 1) - Dec256.ratio!(cp, offer_pool + offer_amount) * U256(1)
+    )
+
+    let spread_amount = (
+      offer_amount * Dec256.ratio!(ask_pool, offer_pool) - return_amount
+    )
+
+    let commission_amount = return_amount * commission_rate
+    let return_amount = return_amount - commission_amount
+    return [U128!(return_amount), U128!(spread_amount), U128!(commission_amount)]
+  }
+
+  exec #swap(
+    sender: Address,
+    offer_asset: Asset,
+    belief_price?: Dec,
+    max_spread?: Dec,
+    to?: Address
+  ) {
+    assert_sent_native_token_balance!($)
+    let pair_info = $state.pair_info
+    let pools = query_pools!(pair_info, $.env.contract.address)
+
+    let offer_pool: Asset
+    let ask_pool: Asset
+    let offer_decimal: U8
+    let ask_decimal: U8
+
+    if offer_asset.info == pools[0].info {
+      offer_pool = Asset(pools[0].info, pools[0].amount.checked_sub!(offer_asset.amount))
+      ask_pool = pools[1]
+      [offer_decimal, ask_decimal] = pair_info.asset_decimals
+    }
+
+    if offer_asset is AssetInfo.#NativeToken {
+      fail Unauthorized()
+    } else if offer_asset.info == pools[1].info {
+      offer_pool = Asset {
+        amount: pools[1].amount.checked_sub!(offer_asset.amount),
+        info: pools[1].info
+      }
+      ask_pool = pools[0]
+      [offer_decimal, ask_decimal] = [pair_info.asset_decimals[1], pair_info.asset_decimals[0]]
+    } else {
+      fail! AssetMismatch()
+    }
+
+    let offer_amount = offer_asset.amount
+    let [return_amount, spread_amount, commission_amount] = compute_swap!(offer_pool.amount, ask_pool.amount, offer_amount)
+
+    let return_asset = Asset(ask_pool.info, return_amount)
+    $.assert_max_spread!(belief_price, max_spread, offer_asset, return_asset, spread_amount, offer_decimal, ask_decimal)
+
+    let receiver = to ?? sender
+    if return_amount != 0 {
+      if return_asset is AssetInfo.#Token {
+        call Wasm.#execute(return_asset.contract_addr, CW20.transfer(recipient, amount))
+      } else {
+        call Wasm.#send(to_address, Coin(amount, denom))
+      }
+    }
+
+    emit Swap(sender, receiver, offer_asset.info, ask_pool.info, offer_amount, spread_amount, commission_amount)
+  }
+
+  query #pair() {
+    return $state.pair_info
+  }
+
+  query #pool() {
+    let { pair_info } = $state
+    let { contract_addr } = pair_info
+    let assets = query_pools!(pair_info, contract_addr)
+    let { total_share } = query! CW20#token_info()
+    return {
+      assets, total_share
+    }
+  }
+
+  query #simulation(offer_asset: Asset) {
+    let pair_info = $state.pair_info
+    let { contract_addr } = pair_info
+
+    let pools = query_pools!(pair_info, contract_addr)
+    let offer_pool: Asset
+    let ask_pool: Asset
+
+    if offer_asset.info == pools[0] {
+      let [offer_pool, ask_pool] = [pools[0], pools[1]]
+    } else if offer_asset.info == pools[1] {
+      let [offer_pool, ask_pool] = [pools[1], pools[0]]
+    } else {
+      fail! AssetMismatch()
+    }
+
+    let [return_amount, spread_amount, commission_amount] = compute_swap!(
+      offer_pool.amount, ask_pool.amount, offer_asset.amount
+    )
+
+    return {
+      return_amount, spread_amount, commission_amount
+    }
+  }
+
+  query #reverse_simulation(ask_asset: Asset) {
+    let { contract_addr } = $state.pair_info
+
+    let pools = query_pools!($state, pair_info, contract_addr)
+    let offer_pool: Asset
+    let ask_pool: Asset
+
+    if ask_asset.info == pools[0] {
+      let [ask_pool, offer_pool] = [pools[0], pools[1]]
+    } else if ask_asset.info == pools[1] {
+      let [ask_pool, offer_pool] = [pools[1], pools[0]]
+    } else {
+      fail! AssetMismatch()
+    }
+
+    let [offer_amount, spread_amount, commission_amount] = compute_offer_amount!(
+      offer_pool.amount, ask_pool.amount, ask_asset.amount
+    )
+
+    return {
+      offer_amount, spread_amount, commission_amount
+    }
+  }
+}

@@ -1,0 +1,335 @@
+// interfaces for contracts
+interface CW20 {
+
+  // namespaced
+  struct Coin {
+    address: String,
+    amount: Uint128
+  }
+
+  // you can define events which are structured objects that you can emit
+  event Transfer(from: Address, to: Address, amount: Int)
+  event Burn(from: Address, amount: Int)
+  event Mint(to: Address, amount: Int)
+  event Send(from: Address, to: Address, amount: Int)
+  event IncreaseAllowance(owner: Address, spender: Address, amount: Int)
+  event DecreaseAllowance(owner: Address, spender: Address, amount: Int)
+  event TransferFrom(from: Address, to: Address, by: Address, amount: Int)
+  event BurnFrom(from: Address, by: Address, amount: Int)
+  event Log(from: Address, to: Address, by: Address, amount: Int)
+
+  // instantiate is a reserved keyword for contracts, and refers to a special function
+  #instantiate(
+    name: String,
+    symbol: String,
+    decimals: Uint8,
+    initial_balances: Self.Coin[],
+    // you can define structs inline at the same time was you use them
+    // this is an optional parameter, which is short for "it may be None"
+    // also, when calling this function, if it is not provided at the position
+    // it is expected a value, it will default to None
+    mint?: struct MinterResponse {
+      minter: String,
+      cap?: Uint128 // optional member defaults to None if not provided
+    }
+  )
+
+  // execute messages -- note that they must begin with a #
+  // all the execute messages implicitly return "response"
+  // all entrypoint messages can use fallible functions (!)
+  // later, we can maybe define what type of data each of them can pass or what type of events get emitted
+  exec #burn(amount: Int)
+  exec #mint(recipient: String)
+  exec #send(contract: String, amount: Int, msg: Binary)
+  exec #increase_allowance(spender: String, amount: Int, expires?: Expiration)
+  exec #decrease_allowance(spender: String, amount: Int, expires?: Expiration)
+  exec #transfer_from(owner: String, recipient: String, amount: Int)
+  exec #burn_from(owner: String, amount: Int)
+  exec #send_from(owner: String, contract: String, amount: Int, msg: Binary)
+
+  // query messages -- note that they must begin with a #
+  query #balance(address: String) -> struct {
+    balance: Int
+  }
+
+  query #token_info() -> struct TokenInfo {
+    name: String,
+    symbol: String,
+    decimals: Uint8,
+    total_supply: Int,
+  }
+
+  query #minter() -> MinterResponse? // <type>? means optional[type]
+
+}
+
+contract TerraswapToken implements CW20 {
+
+  state {
+    token_info: TokenInfo = 0
+    balances[owner: Address]: Int = 0
+    // every map must have a default -- this makes it impossible to have a may_load error
+    // there cannot be a case where we try to load something and it fail! due to the key
+    // not existing.
+
+    // the following are the same:
+    // allowances[owner: Address, spender: Address]: AllowanceResponse? // default = None
+    // allowances[owner: Address, spender: Address]: AllowanceResponse? = None
+    // if no default is present for the type, then you must provide using '='
+    // allowances[owner: Address, spender: Address]: AllowanceResponse
+    // allowances[owner: Address, spender: Address]: AllowanceResponse = AllowanceResponse::empty()
+    allowances[owner: Address, spender: Address]: AllowanceResponse? = None
+  }
+
+  // notice that this function ends in a ! -- this is actually part of the
+  // function name in CWScript (TerraswapToken.validate_accounts does not exist)
+  // you need to call it like this: validate_accounts!(...)
+  fn validate_accounts!(accounts: CW20Coin[]) {
+    let addresses = accounts.map(|c| c.address).sort().dedup()
+    if addresses.len() != accounts.len() {
+      fail! DuplicateInitialBalanceAddresses()
+    }
+  }
+
+  // we can access the special $-message context variables in a function by
+  // passing it in. it must be the first argument of the function you are
+  // defining.
+  fn create_accounts!(accounts: CW20.Coin[]) -> Int {
+    let total_supply = 0
+    for row in accounts {
+      let addr = Address.validate!(row.address)
+      $state.balances[addr] = row.amount
+      total_supply += row.amount
+    }
+    return total_supply
+  }
+
+  // the #instantiate definition acts like the "constructor" and is called
+  // when the contract is first instantiated.
+  // note that the "#" is part of the name, and "instantiate" is a reserved
+  // keyword, so they cannot use it as its own function
+  #instantiate(
+    name: String,
+    symbol: String,
+    decimals: U8,
+    initial_balances: CW20.Coin[], // we use the fully qualified type here
+    mint?: MinterResponse // MinterResponse is loaded in because we are implementing the type
+  ) {
+    validate_accounts!(accounts) // usage of validate_accounts! function
+    let total_supply = create_accounts!($, initial_balances) // need to use mut $
+                                        // which gives us a mutable context
+
+    // mint?.cap? <- let's break this down
+    // mint?. <- this means if "mint" is None, then the result of the expression is "None",
+    // else, it continues. sort of like unwrap or
+    // notice that mint.cap should be verified as not being None after it passes the "and"
+    if mint?.cap? and total_supply > mint.cap {
+      fail! "Initial supply greater than cap"
+    }
+
+    // notice: "MinterData" is a struct, but we are calling it like a function.
+    // all structs in CWScript can also be created with function syntax,
+    // and the parameter order is the order in which it appears in the struct definition
+    // optional members and default values must therefore appear after all positional
+    // arguments.
+    let mint = MinterData(Address.validate!(mint.minter), mint.cap)
+    $state.token_info = TokenInfo(name, symbol, decimals, total_supply, mint)
+  }
+
+  exec #transfer(recipient: String, amount: Int) {
+    if amount == 0 {
+      // the fail! keyword lets the contract return a predefined error
+      // or a alternatively, a String error message
+      fail! InvalidZeroAmount()
+    }
+
+    let rcpt_addr = Address.validate!(recipient)
+    // we don't use checked_sub!() - we can directly write to state because -= is builtin
+    $state.balances[msginfo.sender] -= amount
+    $state.balances[rcpt_addr] += amount
+
+    // use the "emit" keyword to log an event occurrence to the blockchain
+    emit Transfer($info.sender, recipient, amount)
+  }
+
+  exec #Burn(amount: Int) {
+    if amount == 0 {
+      fail! InvalidZeroAmount()
+    }
+
+    $state.balances[info.sender] -= amount // checked_sub automatically called
+    $state.token_info.total_supply -= amount
+
+    emit #Burn($info.sender, amount)
+  }
+
+  exec #Mint(recipient: String, amount: Int) {
+    if amount == 0 {
+      fail! InvalidZeroAmount()
+    }
+    // if $state.config.mint == None, then it will bubble up already
+    let config = $state.config // alias for $state.config
+
+    // config.mint! - we can use "!" to "unwrap" a value, here
+    // config.mint could be None. if it is None and you it is
+    // unwrapped by "!", it would cause an error
+    if config.mint!.minter != msginfo.sender {
+      fail! Unauthorized()
+    }
+
+    config.total_supply += amount
+    let limit = config.cap
+
+    // noticed the "?" is a "None-check" rather than unwrapping
+    // like in Rust
+    if limit? and config.total_supply > limit {
+      fail! CannotExceedCap()
+    }
+
+    $state.token_info = $state.config
+    let rcpt_addr = Address.validate!(recipient)
+    $state.balances[rcpt_addr] += amount
+
+    emit Mint(recipient, amount)
+  }
+
+
+  exec #send(contract: String, amount: Int, msg: Binary) {
+    if amount == 0 {
+      fail! InvalidZeroAmount()
+    }
+
+    let rcpt_addr = Address.validate!(contract)
+
+    // the default is defined in the state, not here b should not be optional
+    $state.balances[msginfo.sender] -= amount
+    $state.balances[rcpt_addr] += amount
+
+    emit Send(msginfo.sender, contract, amount)
+  }
+
+
+  exec #increase_allowance(
+    spender: String,
+    amount: Int,
+    expires?: Expiration
+  ) {
+    let spender_addr = Address.validate!(spender)
+    if spender_addr == $info.sender {
+      fail! CannotSetOwnAccount()
+    }
+
+    let allow = $state.allowances[env.sender, spender_addr]
+    if expires? {
+      allow.expires = expires
+    }
+
+    allow.allowance += amount
+    $state.allowance[msginfo.sender, spender_addr] = allow
+    emit #IncreaseAllowance($info.sender, spender, amount)
+  }
+
+  exec #decrease_allowance(spender: String, amount: Int, expires?: Expiration) {
+    let spender_addr = Address.validate!(spender)
+    if spender_addr == $info.sender {
+      fail! CannotSetOwnAccount()
+    }
+
+    let allowance = $state.allowances[$info.sender, spender_addr]
+
+    if amount < allowance.allowance {
+      allowance.allowance -= amount
+      if expires? {
+        // inside here, all the variables used in a "?" None-query
+        // will be now defined
+        allowance.expires = expires
+      }
+      $state.allowances[$info.sender, spender_addr] = allowance
+    } else {
+      // we call remove!() which must be accessed using '::' instead of
+      // "." -- this is because '::' is used for reflection. CWScript will
+      // try to resolve by inspecting ($state.allowances[ ... ])'s type,
+      // which is the smart state object that abstracts access to state.allowances
+      // at that the key for $state.allowances[$info.sender, spender_addr].
+      // then ::remove!() deletes the key
+      $state.allowances[$info.sender, spender_addr]::remove!()
+    }
+
+    emit #DecreaseAllowance($info.sender, spender, amount)
+  }
+
+  exec #transfer_from(owner: String, recipient: String, amount: Int) {
+    let rcpt_addr = Address.validate!(recipient)
+    let owner_addr = Address.validate!(owner)
+
+    deduct_allowance!(owner_addr, $info.sender, $env.block, amount)
+    $state.balances[owner_addr] -= amount
+    $state.balances[rcpt_addr] += amount
+
+    emit TransferFrom(owner, recipient, $info.sender, amount)
+  }
+
+  exec #burn_from(owner: String, amount: Int) {
+    let owner_addr = Address.validate!(owner)
+    deduct_allowance!(owner_addr, $info.sender, $env.block, amount)
+
+    $state.balances[owner_addr]::update!(|s| s.checked_sub!(amount))
+    $state.token_info.total_supply -= amount
+
+    emit BurnFrom(owner, $info.sender, amount)
+  }
+
+  exec #send_from(owner: String, contract: String, amount: Int, msg: Binary) {
+    let rcpt_addr = Address.validate!(contract)
+    let owner_addr = Address.validate!(owner)
+
+    deduct_allowance!(owner_addr, $info.sender, $env.block, amount)
+    $state.balances[owner_addr] -= amount
+    $state.balances[rcpt_addr] += amount
+
+    emit SendFrom(owner, contract, $msg.sender, amount)
+
+    // funds will be [] if omitted
+    exec! $.#send_from(sender, amount, msg)
+  }
+
+  query #balance(address: String) {
+    let address = Address.validate!(address)
+    let balance = state.balances[address]
+
+    // we don't need to name the return type, it will get matched by the
+    // type analyzer to resolve it to the one corresponding to the required interface
+    return {
+      balance
+    }
+  }
+
+  query #token_info() {
+    return state.token_info
+  }
+
+  query #minter() {
+    return state.token_info.mint
+  }
+
+  query #allowance(owner: String, spender: String) {
+    let owner_addr = Address.validate!(owner)
+    let spender_addr = Address.validate!(spender)
+    return $state.allowances[owner_addr, spender_addr]
+  }
+
+  query #all_allowances(owner: String, start_after?: String, limit?: Int) -> AllowanceResponse {
+    let limit = (limit ?? DEFAULT_LIMIT).min(MAX_LIMIT)
+    let allowances = $state.allowances[owner_addr]::range(start, None)
+      .take(limit)
+      .map(|item| item.map(|addr, allow| AllowanceInfo {
+          spender: addr,
+          allowance: allow.allowance,
+          expires: allow.expires
+       }))
+    return {
+      allowances
+    }
+  }
+
+}

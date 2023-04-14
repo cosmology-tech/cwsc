@@ -1,0 +1,131 @@
+import * from "./common.cws"
+
+contract TerraswapFactory {
+
+  error Unauthorized()
+  event UpdateConfig()
+
+  state {
+    config: Config // since these are not option, we will type-check these...
+    tmp_pair_info: TmpPairInfo
+    pairs[U8]: PairInfo? = None
+    allow_native_tokens[U8[2]]: U8? = None
+  }
+
+  fn query_decimals!(account_addr: address, asset_info: AssetInfo) -> U8 {
+    if asset_info is AssetInfo.#Token {
+      let { contract_addr } = asset_info
+      let token_info = query! CW20(asset_info).#token_info()
+      return token_info.decimals
+    } else {
+      // asset_info is AssetInfo::NativeToken
+      // this does a self-query
+      let res = query! $.#native_token_decimals(asset_info.denom)
+      return res.decimals
+    }
+  }
+
+  // #1. how do we let users pass context around ($)
+  // #2. how can we make it obvious that instantiate is not a function that the user can call
+  #instantiate(pair_code_id: U64, token_code_id: U64) {
+    $state.config = Config(token_code_id, pair_code_id, $info.sender)
+  }
+
+  exec #update_config(owner?: String, token_code_id?: U64, pair_code_id?: U64) {
+    if $info.sender != $state.config.owner {
+      fail! Unauthorized()
+    }
+
+    // auto-unwraps if safe
+    if owner? {
+      $state.config.owner = Address.validate!(owner)
+    }
+
+    if token_code_id? {
+      $state.token_code_id = token_code_id
+    }
+
+    if pair_code_id? {
+      $state.pair_code_id = pair_code_id
+    }
+
+    emit UpdateConfig()
+  }
+
+  reply.success post_instantiate() {
+    let { tmp_pair_info } = $state
+    // parse_response!
+    // the parse_response!() function expects the context variable "$"
+    let response = Wasm.Instantiate::parse_response!($data)
+    let pair_contract = response.address
+    let pair_info = query! TerraswapPair(pair_contract).#pair() ~ .token_supply
+    $state.pairs = PairInfo(
+      Address.Canonical!(pair_info.liquidity_token),
+      Address.Canonical!(pair_info.liquidity_token),
+      asset_infos=tmp_pair_info.asset_infos,
+      asset_decimals=tmp_pair_info.asset_decimals
+    )
+    emit PostInstantiate(pair_contract, pair_info.liquidity_token)
+  }
+
+  exec #create_pair(asset_infos: AssetInfo[2]) {
+    if asset_infos[0] == asset_infos[1] {
+      fail! "same asset"
+    }
+
+    let asset_1_decimal = query_decimals!($env.contract.address, asset_infos[0])
+    let asset_2_decimal = query_decimals!($env.contract.address, asset_infos[1])
+    let asset_decimals = [asset_1_decimal, asset_2_decimal]
+
+    let pair_key = String!(asset_infos[0]) + String!(asset_infos[1])
+
+    // $state::pairs::has_key(pair_key)
+    // optimization: check if key is there
+    if pair_key in $state.pairs {
+      fail! "Pair already exists"
+    }
+
+    $state.tmp_pair_info = TmpPairInfo { pair_key, asset_infos, asset_decimals }
+    emit CreatePair(asset_infos[0], asset_infos[1])
+
+    @gas_limit(5000000)
+    @reply.on_success(post_instantiate)
+    instantiate! #TerraswapPair(asset_infos, $state.config.token_code_id, asset_decimals) {
+      code_id: $state.config.pair_code_id,
+      admin: $env.contract.address,
+      label: "pair"
+    }
+  }
+
+  exec #add_native_token_decimals(denom: String, decimals: U8) {
+    if $info.sender != $state.config.owner {
+      fail! Unauthorized()
+    }
+
+    let balance = query! Bank.#balance($env.contract.address, denom)
+
+    if balance.amount == 0 {
+      fail! "A balance greater than zero is required by the factory for verification"
+    }
+
+    $state.allow_native_tokens[denom] = decimals
+    emit AddAllowNativeToken(denom, decimals)
+  }
+
+  query #config() {
+    return $state.config
+  }
+
+  query #pair(asset_infos: AssetInfo[2]) {
+    let pairs = $state.pairs[asset_infos]
+    return { pairs } // type is inferred
+    // intuition is, if you're too lazy to name it and define it,
+    // it probably can be referred to as just the response type of query
+  }
+
+  query #native_token_decimal(denom: String) {
+    let decimals = $state.allow_native_tokens[denom]
+    return { decimals }
+  }
+
+}

@@ -1,0 +1,34 @@
+import "standard"
+import item, ute from "utica.cws"
+
+interface IContract {
+    
+}
+
+interface IHasErrors {
+
+}
+
+contract KitchenSink extends ExampleContract
+    implements IContract, IHasErrors 
+{
+
+    error SingleUnit
+    error SingleTuple(String, Uint128)
+    error SingleStruct(name: String, balance: Uint128)
+    error SingleStructCurly{
+        name: String,
+        balance: Uint128，
+    }
+    
+    event SingleUnit
+    event SingleTuple(String, String, Uint128)
+    event SingleStruct(name: String, balance: Uint128)
+    event SingleStructCurly {
+        name: String,
+        balance: Uint128,
+    }
+
+    instantiate(msg: Uint128, name: String) {
+    }
+}
