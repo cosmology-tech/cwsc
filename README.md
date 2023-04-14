@@ -8,7 +8,6 @@ cwsc is written in TypeScript and requires Node.js v16 or later.
 * [`cwsc`: CWScript Compiler](#cwsc-cwscript-compiler)
   * [Features](#features)
   * [Installation](#installation)
-
   * [Usage](#usage)
   * [Examples](#examples)
     * [Hello World](#hello-world)
