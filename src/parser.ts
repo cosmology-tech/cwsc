@@ -68,6 +68,7 @@ import {
   TypeFnCallExprContext,
   MulExprContext,
   AddExprContext,
+  ElseClauseContext,
 } from './grammar/CWScriptParser';
 import { CWScriptLexer } from './grammar/CWScriptLexer';
 import { CharStreams, CommonTokenStream, ParserRuleContext } from 'antlr4ts';
@@ -80,8 +81,6 @@ export class CWScriptASTVisitor
   implements CWScriptParserVisitor<AST.AST>
 {
   // Stmts
-  visit;
-
   visitSourceFile(ctx: SourceFileContext): AST.SourceFile {
     let body = ctx.topLevelStmt().map((x) => this.visit(x));
     return new AST.SourceFile(body).$(ctx);
@@ -292,7 +291,8 @@ export class CWScriptASTVisitor
 
   visitLetStmt_(ctx: LetStmt_Context): AST.LetStmt {
     let binding = this.visit(ctx.let_binding()) as AST.LetBinding;
-    let expr = this.visit(ctx.expr()) as AST.Expr;
+    let expr_ = ctx.expr();
+    let expr = expr_ ? (this.visit(expr_) as AST.Expr) : null;
     return new AST.LetStmt(binding, expr).$(ctx);
   }
 
@@ -324,8 +324,18 @@ export class CWScriptASTVisitor
   visitIfStmt_(ctx: IfStmt_Context): AST.IfStmt {
     let pred = this.visit(ctx._pred) as AST.Expr;
     let then = this.visitBlock(ctx._body);
-    let else_ = ctx._else_ ? this.visit(ctx._else_) : null;
+    let else_ = ctx._else_ ? this.visitElseClause(ctx._else_) : null;
     return new AST.IfStmt(pred, then, else_).$(ctx);
+  }
+
+  visitElseClause(ctx: ElseClauseContext): AST.Block {
+    let stmt = ctx.stmt();
+    if (stmt) {
+      return new AST.Block([this.visit(stmt) as AST.Stmt]).$(ctx);
+    } else {
+      let block = ctx.block()!;
+      return this.visitBlock(block);
+    }
   }
 
   visitIfStmt(ctx: IfStmtContext): AST.IfStmt {
@@ -333,7 +343,9 @@ export class CWScriptASTVisitor
   }
 
   visitBlock(ctx: BlockContext): AST.Block {
-    return new AST.Block(ctx._body.map((x) => this.visit(x))).$(ctx);
+    return new AST.Block(ctx._body.map((x) => this.visit(x) as AST.Stmt)).$(
+      ctx
+    );
   }
 
   visitFor_Stmt(ctx: ForStmt_Context): AST.ForStmt {
