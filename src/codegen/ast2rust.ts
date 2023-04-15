@@ -21,7 +21,13 @@ import {
   buildModError,
   buildModContract,
 } from './module-builders';
-import { ContractDefn, ExecDecl, ExecDefn, ParamzdTypeExpr, TypePath } from '../ast/nodes';
+import {
+  ContractDefn,
+  ExecDecl,
+  ExecDefn,
+  ParamzdTypeExpr,
+  TypePath,
+} from '../ast/nodes';
 import { TypeConversion } from '../rust/typeConversion';
 
 export class UnresolvedType {
@@ -93,7 +99,6 @@ export class AST2Rust {
     ) {
       return C_TYPES.join(ty.name.text).toType();
     }
-
 
     throw new Error(`type ${ty.constructor.name} could not be resolved`);
   }
@@ -531,24 +536,29 @@ export class AST2Rust {
   translateExecuteNowStmt(x: AST.ExecuteNowStmt): Rust.CodeGroup {
     const res = new Rust.CodeGroup(x.ctx.text);
     const { msg } = x;
-    
+
     res.add(this.translate(msg));
     const msgVar = this.lastTmpVar();
 
     const responseVar1 = this.getTmpVar();
-    res.add(new Defn.Let(
-      true,
-      responseVar1.toRustString(),
-      undefined,
-      new Expr.InstantiateStruct("Response")));
+    res.add(
+      new Defn.Let(
+        true,
+        responseVar1.toRustString(),
+        undefined,
+        new Expr.InstantiateStruct('Response')
+      )
+    );
 
     const responseVar2 = this.getTmpVar();
-    res.add(new Defn.Let(
-      true,
-      responseVar2.toRustString(),
-      undefined,
-      responseVar1.fnCall("add_message", [msgVar])
-    ));
+    res.add(
+      new Defn.Let(
+        true,
+        responseVar2.toRustString(),
+        undefined,
+        responseVar1.fnCall('add_message', [msgVar])
+      )
+    );
 
     res.add(new Rust.Stmt.Return(responseVar2.ok()));
 
@@ -566,11 +576,21 @@ export class AST2Rust {
     let __tmp3 = String::from(__tmp2);
     */
     // ToDo: validation/error-handling
-    const contract = this.intermediate.contracts.get(astMsg.nearestAncestorOfType(ContractDefn)!.name.text)!;
-    const exec = contract.execs.find(e => e.name === astMsg.nearestAncestorOfType(ExecDefn)!.name!.text)!;
-    const addr = exec.args.find(a => a.name === klass.text || a.type.name === 'Addr')!;
-    const contractInterface = this.intermediate.interfaces.get(addr.type.types[0])!;
-    const argDefs = contractInterface.execs.find(e => e.name === method.text)!.args;
+    const contract = this.intermediate.contracts.get(
+      astMsg.nearestAncestorOfType(ContractDefn)!.name.text
+    )!;
+    const exec = contract.execs.find(
+      (e) => e.name === astMsg.nearestAncestorOfType(ExecDefn)!.name!.text
+    )!;
+    const addr = exec.args.find(
+      (a) => a.name === klass.text || a.type.name === 'Addr'
+    )!;
+    const contractInterface = this.intermediate.interfaces.get(
+      addr.type.types[0]
+    )!;
+    const argDefs = contractInterface.execs.find(
+      (e) => e.name === method.text
+    )!.args;
 
     for (let i = 0; i < args.elements.length; i++) {
       const arg = args.elements[i];
@@ -579,11 +599,14 @@ export class AST2Rust {
       const target = this.lastTmpVar();
       const type = argDefs[i].type.name;
 
-      res.add(new Defn.Let(
-        true,
-        this.getTmpVar().toRustString(),
-        undefined,
-        new TypeConversion(target.path, type)))
+      res.add(
+        new Defn.Let(
+          true,
+          this.getTmpVar().toRustString(),
+          undefined,
+          new TypeConversion(target.path, type)
+        )
+      );
     }
 
     /*
@@ -595,38 +618,48 @@ export class AST2Rust {
     const structMembers = [];
     for (let i = 0; i < argDefs.length; i++) {
       const name = argDefs[i].name;
-      const idx = (i + 1)*2 - 1;
-      structMembers.push(new Val.StructMember(
-        name,
-        new Expr.Path(`__tmp${idx}`)));
+      const idx = (i + 1) * 2 - 1;
+      structMembers.push(
+        new Val.StructMember(name, new Expr.Path(`__tmp${idx}`))
+      );
     }
 
     const struct = new Rust.Val.Struct(
-      new Type(`${contract.name}::${method.text[0].toUpperCase() + method.text.slice(1)}`),
+      new Type(
+        `${contract.name}::${
+          method.text[0].toUpperCase() + method.text.slice(1)
+        }`
+      ),
       structMembers
     );
 
-    res.add(new Defn.Let(
-      true,
-      this.getTmpVar().toRustString(),
-      undefined,
-      struct));
+    res.add(
+      new Defn.Let(true, this.getTmpVar().toRustString(), undefined, struct)
+    );
 
     // let __tmp5 = to_binary(&__tmp4);
     const target = this.lastTmpVar();
-    res.add(new Defn.Let(
-      true,
-      this.getTmpVar().toRustString(),
-      undefined,
-      new Expr.FnCall("to_binary", [new Expr.Path(`&${target.toRustString()}`)])));
+    res.add(
+      new Defn.Let(
+        true,
+        this.getTmpVar().toRustString(),
+        undefined,
+        new Expr.FnCall('to_binary', [
+          new Expr.Path(`&${target.toRustString()}`),
+        ])
+      )
+    );
 
     // let __tmp6 = remote_contract.to_string();
     const msgBinary = this.lastTmpVar();
-    res.add(new Defn.Let(
-      true,
-      this.getTmpVar().toRustString(),
-      undefined,
-      new Expr.FnCall(`${klass.text}.to_string`)));
+    res.add(
+      new Defn.Let(
+        true,
+        this.getTmpVar().toRustString(),
+        undefined,
+        new Expr.FnCall(`${klass.text}.to_string`)
+      )
+    );
 
     /*
     let __tmp7 = WasmMsg::Execute {
@@ -636,17 +669,18 @@ export class AST2Rust {
     };
     */
     const contractAddr = this.lastTmpVar();
-    res.add(new Defn.Let(
-      true,
-      this.getTmpVar().toRustString(),
-      undefined,
-      new Rust.Val.Struct(
-        new Type(`WasmMsg::Execute`),
-        [
+    res.add(
+      new Defn.Let(
+        true,
+        this.getTmpVar().toRustString(),
+        undefined,
+        new Rust.Val.Struct(new Type(`WasmMsg::Execute`), [
           new Val.StructMember('contract_addr', contractAddr),
           new Val.StructMember('msg', msgBinary),
           new Val.StructMember('funds', new Expr.Path('vec![]')),
-        ])));
+        ])
+      )
+    );
 
     return res;
   }

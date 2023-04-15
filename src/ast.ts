@@ -1,5 +1,67 @@
+import { ParserRuleContext } from 'antlr4ts';
+
 export class AST {
+  public $ctx: ParserRuleContext | null = null;
+
   constructor(public $parent: AST | null = null) {}
+
+  static isNode(x: any): x is AST {
+    return x instanceof AST;
+  }
+
+  public setParent(parent: AST | null): void {
+    this.$parent = parent;
+  }
+
+  public $(ctx: ParserRuleContext): this {
+    this.$ctx = ctx;
+    this.setParentForChildren();
+    return this;
+  }
+
+  /**
+   * Returns true if this node is a "virtual" node, i.e. a node that does not
+   * correspond to a node in the AST. This is because we go over the AST in
+   * multiple passes of simplification and transformation. The final AST prior
+   * to code generation passes will be the semantically richest representation of the
+   * original source code.
+   *
+   * We only drop context after it is no longer needed for further passes,
+   * i.e. after all of the validation passes have been run. The context is mainly
+   * used to provide diagnostics and error messages -- The AST is traversible
+   * without the context.
+   *
+   * @returns {boolean}
+   */
+  public isVirtual(): boolean {
+    return this.$ctx === null;
+  }
+
+  public toJSON(): any {
+    let res: any = {};
+    for (const key of Object.keys(this)) {
+      console.log(key);
+      //@ts-ignore
+      if (key === '$parent' || key === '$ctx') {
+        continue;
+      }
+
+      // @ts-ignore
+      if (AST.isNode(this[key])) {
+        // @ts-ignore
+        res[key] = this[key].toJSON();
+        // @ts-ignore
+      } else if (Array.isArray(this[key])) {
+        // @ts-ignore
+        res[key] = this[key].map((x) => x.toJSON());
+      } else {
+        // @ts-ignore
+        res[key] = this[key];
+      }
+    }
+    res['$type'] = this.constructor.name;
+    return res;
+  }
 
   protected setParentForChildren(): void {
     for (const key in this) {
@@ -9,45 +71,6 @@ export class AST {
       }
     }
   }
-
-  public setParent(parent: AST | null): void {
-    this.$parent = parent;
-  }
-
-  public $(): this {
-    this.setParentForChildren();
-    return this;
-  }
-
-  static isNode(x: any): x is AST {
-    return x instanceof AST;
-  }
-
-	public toJSON(): any {
-		let res: any = {};
-		for (const key of Object.keys(this)) {
-			console.log(key);
-			//@ts-ignore
-			if (key === '$parent') {
-				continue;
-			}
-
-			// @ts-ignore
-			if (AST.isNode(this[key])) {
-				// @ts-ignore
-				res[key] = this[key].toJSON();
-				// @ts-ignore
-			} else if (Array.isArray(this[key])) {
-				// @ts-ignore
-				res[key] = this[key].map((x) => x.toJSON());
-			} else {
-				// @ts-ignore
-				res[key] = this[key];
-			}
-		}
-		res['$type'] = this.constructor.name;
-		return res;
-	}
 }
 
 export class List<T extends AST = AST> extends AST {
@@ -55,20 +78,28 @@ export class List<T extends AST = AST> extends AST {
     super();
   }
 
+  static empty<T extends AST = AST>(): List<T> {
+    return new List<T>([]);
+  }
+
+  // Use this to create a "virtual" list, i.e. a list that does not
+  // correspond to a node in the AST.
+  static virtual<T extends AST = AST>(children: T[]): List<T> {
+    let list = new List<T>(children);
+    list.setParentForChildren();
+    return list;
+  }
+
+  public toJSON(): any {
+    return {
+      $type: this.constructor.name,
+      $children: this.$children.map((x) => x.toJSON()),
+    };
+  }
+
   protected setParentForChildren(): void {
     this.$children.forEach((x) => x.setParent(this));
   }
-
-	static empty<T extends AST = AST>(): List<T> {
-		return new List<T>([]);
-	}
-
-	public toJSON(): any {
-		return {
-			$type: this.constructor.name,
-			$children: this.$children.map((x) => x.toJSON())
-		}
-	}
 }
 
 export class Ident extends AST {
@@ -115,7 +146,7 @@ export class TypeVariant extends AST {
 export class StructDefn extends AST {
   constructor(
     public name: Ident | null = null,
-    public members: Param[] = [],
+    public members: List<Param> = List.empty(),
     public isTuple = false
   ) {
     super();
@@ -123,7 +154,7 @@ export class StructDefn extends AST {
 }
 
 export class EnumVariantStruct extends AST {
-  constructor(public name: Ident, public members: Param[] = []) {
+  constructor(public name: Ident, public members: List<Param> = List.empty()) {
     super();
   }
 }
@@ -138,7 +169,7 @@ export class EnumVariantUnit extends AST {
 export class EnumDefn extends AST {
   constructor(
     public name: Ident,
-    public variants: (EnumVariantStruct | EnumVariantUnit)[]
+    public variants: List<EnumVariantStruct | EnumVariantUnit>
   ) {
     super();
   }
@@ -181,23 +212,17 @@ export class ImportItemsStmt extends AST {
   }
 }
 
-export class ErrorDefn extends AST {
-  constructor(public defn: StructDefn) {
-    super();
-  }
-}
+export class ErrorDefn extends StructDefn {}
 
-export class ErrorDefnBlock extends List<StructDefn> {}
-export class EventDefn extends AST {
-  constructor(public defn: StructDefn) {
-    super();
-  }
-}
-export class EventDefnBlock extends List<StructDefn> {}
+export class ErrorDefnBlock extends List<ErrorDefn> {}
 
-export class StateDefnBlock extends List<StateItemDefn | StateMapDefn> {}
+export class EventDefn extends StructDefn {}
 
-export class StateItemDefn extends AST {
+export class EventDefnBlock extends List<EventDefn> {}
+
+export class StateDefnBlock extends List<StateDefnItem | StateDefnMap> {}
+
+export class StateDefnItem extends AST {
   constructor(
     public name: Ident,
     public ty: TypeExpr,
@@ -207,10 +232,10 @@ export class StateItemDefn extends AST {
   }
 }
 
-export class StateMapDefn extends AST {
+export class StateDefnMap extends AST {
   constructor(
     public name: Ident,
-    public mapKeys: MapKeyDefn[],
+    public mapKeys: List<MapKeyDefn>,
     public ty: TypeExpr,
     public default_: Expr | null = null
   ) {
@@ -225,13 +250,13 @@ export class MapKeyDefn extends AST {
 }
 
 export class InstantiateDefn extends AST {
-  constructor(public params: List<Param> = List.empty(), public body: ContractBlock) {
+  constructor(public params: List<Param> = List.empty(), public body: Block) {
     super();
   }
 }
 
 export class InstantiateDecl extends AST {
-  constructor(public params: Param[]) {
+  constructor(public params: List<Param>) {
     super();
   }
 }
@@ -246,6 +271,7 @@ export class ExecDefn extends AST {
     super();
   }
 }
+
 export class ExecDecl extends AST {
   constructor(
     public name: Ident,
@@ -260,7 +286,7 @@ export class QueryDefn extends AST {
   constructor(
     public name: Ident,
     public params: List<Param> = List.empty(),
-		public retTy: TypeExpr | null,
+    public retTy: TypeExpr | null,
     public body: Block,
     public tup: boolean = false
   ) {
@@ -271,7 +297,7 @@ export class QueryDefn extends AST {
 export class QueryDecl extends AST {
   constructor(
     public name: Ident,
-    public params: Param[],
+    public params: List<Param>,
     public retTy: TypeExpr | null = null,
     public tup: boolean = false
   ) {
@@ -282,7 +308,7 @@ export class QueryDecl extends AST {
 export class ReplyDefn extends AST {
   constructor(
     public name: Ident,
-    public params: Param[],
+    public params: List<Param>,
     public body: Block,
     public on?: Ident
   ) {
@@ -308,16 +334,22 @@ export class LetStmt extends AST {
   }
 }
 
-export class LetBinding extends AST {
-  constructor(
-    public symbols: List<Ident>,
-    public isStruct: boolean = false,
-    public ty: TypeExpr | null = null
-  ) {
+export enum BindingType {
+  IDENT = 'ident',
+  STRUCT = 'struct',
+  TUPLE = 'tuple',
+}
+
+export class IdentBinding extends AST {
+  constructor(public name: Ident, public ty: TypeExpr | null = null) {
     super();
   }
 }
 
+export class TupleBinding extends List<IdentBinding> {}
+export class StructBinding extends List<IdentBinding> {}
+
+export type LetBinding = IdentBinding | TupleBinding | StructBinding;
 export class ConstStmt extends AST {
   constructor(public name: Ident, public expr: Expr) {
     super();
@@ -325,7 +357,7 @@ export class ConstStmt extends AST {
 }
 
 export class Annotation extends AST {
-  constructor(public path: TypePath, public args: Arg[] = []) {
+  constructor(public path: TypePath, public args: List<Arg> = List.empty()) {
     super();
   }
 }
@@ -364,7 +396,7 @@ export class DotLHS extends AST {
 }
 
 export class IndexLHS extends AST {
-  constructor(public obj: Expr, public args: Expr[]) {
+  constructor(public obj: Expr, public args: List<Expr>) {
     super();
   }
 }
@@ -424,7 +456,7 @@ export class AsExpr extends AST {
 }
 
 export class IndexExpr extends AST {
-  constructor(public obj: Expr, public args: Expr[]) {
+  constructor(public obj: Expr, public args: List<Arg>) {
     super();
   }
 }
@@ -436,7 +468,11 @@ export class DColonExpr extends AST {
 }
 
 export class FnCallExpr extends AST {
-  constructor(public func: Expr | TypeExpr, public args: Arg[]) {
+  constructor(
+    public func: Expr | TypeExpr,
+    public tries: boolean = false,
+    public args: List<Arg>
+  ) {
     super();
   }
 }
@@ -531,6 +567,7 @@ export class QueryExpr extends AST {
     super();
   }
 }
+
 export class QueryNowExpr extends AST {
   constructor(public expr: Expr) {
     super();
@@ -555,7 +592,7 @@ export class IdentExpr extends AST {
   }
 }
 
-export class GroupExpr extends AST {
+export class Grouped2Expr extends AST {
   constructor(public expr: Expr) {
     super();
   }
@@ -563,6 +600,7 @@ export class GroupExpr extends AST {
 
 export type Expr =
   | GroupedExpr
+  | Grouped2Expr
   | DotExpr
   | AsExpr
   | IndexExpr
@@ -582,7 +620,6 @@ export type Expr =
   | FailExpr
   | UnitVariantExpr
   | IdentExpr
-  | GroupExpr
   | TupleExpr
   | StructExpr
   | Literal
@@ -602,11 +639,13 @@ export type TypeExpr =
 
 export type PathT = TypePath;
 export type VariantT = TypeVariant;
+
 export class InstantiateT extends AST {
   constructor(public path: TypeExpr) {
     super();
   }
 }
+
 export class ExecT extends AST {
   constructor(public variant: VariantT) {
     super();
@@ -618,6 +657,7 @@ export class QueryT extends AST {
     super();
   }
 }
+
 export class MutT extends AST {
   constructor(public ty: TypeExpr) {
     super();
@@ -650,7 +690,7 @@ export class Arg extends AST {
 
 export class Closure extends AST {
   constructor(
-    public params: Param[],
+    public params: List<Param>,
     public retTy: TypeExpr | null = null,
     public body: Block
   ) {
@@ -665,9 +705,13 @@ export class Literal extends AST {
 }
 
 export class StringLit extends Literal {}
+
 export class IntLit extends Literal {}
+
 export class DecLit extends Literal {}
+
 export class BoolLit extends Literal {}
+
 export class NoneLit extends Literal {}
 
 export type Stmt =
@@ -697,7 +741,11 @@ export class DelegateExecStmt extends AST {
 }
 
 export class InstantiateStmt extends AST {
-  constructor(public expr: Expr, public options: MemberVal[] = []) {
+  constructor(
+    public expr: Expr,
+    public new_: boolean = false,
+    public options: List<MemberVal> = List.empty()
+  ) {
     super();
   }
 }

@@ -197,8 +197,10 @@ import {
   IfClauseVariant,
 } from './nodes';
 
-export class CWScriptASTVisitor extends AbstractParseTreeVisitor<AST>
-  implements CWScriptParserVisitor<AST> {
+export class CWScriptASTVisitor
+  extends AbstractParseTreeVisitor<AST>
+  implements CWScriptParserVisitor<AST>
+{
   protected defaultResult(): AST {
     return new EmptyAST();
   }
@@ -210,7 +212,7 @@ export class CWScriptASTVisitor extends AbstractParseTreeVisitor<AST>
       ctx._spec ? this.visitCwspec(ctx._spec) : undefined,
       new List(
         ctx.topLevelStmt(),
-        stmts.map(stmt => this.visit(stmt)) as Stmt[]
+        stmts.map((stmt) => this.visit(stmt)) as Stmt[]
       )
     );
   }
@@ -230,7 +232,9 @@ export class CWScriptASTVisitor extends AbstractParseTreeVisitor<AST>
 
   visitImportItemsStmt(ctx: ImportItemsStmtContext): ImportItemsStmt {
     let fileName = ctx._fileName.text!.replace(/^["'](.+(?=["']$))["']$/, '$1');
-    let items = ctx._items._importItems.map(item => this.visitImportItem(item));
+    let items = ctx._items._importItems.map((item) =>
+      this.visitImportItem(item)
+    );
 
     return new ImportItemsStmt(ctx, fileName, new List(ctx, items));
   }
@@ -243,7 +247,7 @@ export class CWScriptASTVisitor extends AbstractParseTreeVisitor<AST>
       root,
       new List(
         ctx,
-        paths.map(path => this.visitIdent(path))
+        paths.map((path) => this.visitIdent(path))
       )
     );
   }
@@ -257,7 +261,7 @@ export class CWScriptASTVisitor extends AbstractParseTreeVisitor<AST>
         ctx
           .typeParam()
           .typeExpr()
-          .map(expr => this.visit(expr)) as TypeExpr[]
+          .map((expr) => this.visit(expr)) as TypeExpr[]
       )
     );
   }
@@ -265,7 +269,10 @@ export class CWScriptASTVisitor extends AbstractParseTreeVisitor<AST>
   visitTupleTypeExpr(ctx: TupleTypeExprContext): TupleTypeExpr {
     return new TupleTypeExpr(
       ctx,
-      new List(ctx, ctx.typeExpr().map(expr => this.visit(expr)) as TypeExpr[])
+      new List(
+        ctx,
+        ctx.typeExpr().map((expr) => this.visit(expr)) as TypeExpr[]
+      )
     );
   }
 
@@ -290,7 +297,7 @@ export class CWScriptASTVisitor extends AbstractParseTreeVisitor<AST>
   visitIdentList(ctx: IdentListContext): List<Ident> {
     return new List(
       ctx,
-      ctx._symbols.map(x => this.visitIdent(x))
+      ctx._symbols.map((x) => this.visitIdent(x))
     );
   }
 
@@ -300,7 +307,7 @@ export class CWScriptASTVisitor extends AbstractParseTreeVisitor<AST>
 
   visitInterfaceBody(ctx: InterfaceBodyContext): List<InterfaceItem> {
     let items = ctx.interfaceItem() || [];
-    return new List(ctx, items.map(x => this.visit(x)) as ContractItem[]);
+    return new List(ctx, items.map((x) => this.visit(x)) as ContractItem[]);
   }
 
   visitInterfaceDefn(ctx: InterfaceDefnContext): InterfaceDefn {
@@ -315,7 +322,7 @@ export class CWScriptASTVisitor extends AbstractParseTreeVisitor<AST>
 
   visitContractBody(ctx: ContractBodyContext): List<ContractItem> {
     let items = ctx.contractItem() || [];
-    return new List(ctx, items.map(x => this.visit(x)) as ContractItem[]);
+    return new List(ctx, items.map((x) => this.visit(x)) as ContractItem[]);
   }
 
   visitContractDefn(ctx: ContractDefnContext): ContractDefn {
@@ -378,7 +385,9 @@ export class CWScriptASTVisitor extends AbstractParseTreeVisitor<AST>
         this.visitIdent(ctx._name),
         new List(
           parenStructMembers,
-          parenStructMembers.structMember().map(x => this.visitStructMember(x))
+          parenStructMembers
+            .structMember()
+            .map((x) => this.visitStructMember(x))
         )
       );
     } else if (curlyStructMembers !== undefined) {
@@ -387,7 +396,9 @@ export class CWScriptASTVisitor extends AbstractParseTreeVisitor<AST>
         this.visitIdent(ctx._name),
         new List(
           curlyStructMembers,
-          curlyStructMembers.structMember().map(x => this.visitStructMember(x))
+          curlyStructMembers
+            .structMember()
+            .map((x) => this.visitStructMember(x))
         )
       );
     } else {
@@ -404,7 +415,7 @@ export class CWScriptASTVisitor extends AbstractParseTreeVisitor<AST>
         ctx
           .tupleMembers()
           .typeExpr()
-          .map(x => this.visit(x) as TypeExpr)
+          .map((x) => this.visit(x) as TypeExpr)
       )
     );
   }
@@ -439,7 +450,7 @@ export class CWScriptASTVisitor extends AbstractParseTreeVisitor<AST>
     let defns = ctx.errorDefnBlock_item() || [];
     return new List(
       ctx,
-      defns.map(x => this.visitErrorDefn(x as ErrorDefnContext))
+      defns.map((x) => this.visitErrorDefn(x as ErrorDefnContext))
     );
   }
 
@@ -447,7 +458,7 @@ export class CWScriptASTVisitor extends AbstractParseTreeVisitor<AST>
     let defns = ctx.eventDefnBlock_item() || [];
     return new List(
       ctx,
-      defns.map(x => this.visitEventDefn(x as EventDefnContext))
+      defns.map((x) => this.visitEventDefn(x as EventDefnContext))
     );
   }
 
@@ -470,7 +481,7 @@ export class CWScriptASTVisitor extends AbstractParseTreeVisitor<AST>
       this.visitIdent(map._key),
       new List(
         ctx._map._mapKeys,
-        mapKeys.map(x => this.visitMapDefnKey(x))
+        mapKeys.map((x) => this.visitMapDefnKey(x))
       ),
       this.visit(map._valueType) as TypeExpr
     );
@@ -480,7 +491,7 @@ export class CWScriptASTVisitor extends AbstractParseTreeVisitor<AST>
     let items = ctx.stateDefnBlock_item() || [];
     return new List(
       ctx,
-      items.map(x => {
+      items.map((x) => {
         if (x instanceof StateBlockItemDefnContext) {
           return this.visitStateItemDefn(x as StateItemDefnContext);
         } else {
@@ -502,7 +513,7 @@ export class CWScriptASTVisitor extends AbstractParseTreeVisitor<AST>
     let fnArgs = ctx.fnArgList()?.fnArg() || [];
     return new List(
       ctx,
-      fnArgs.map(x => this.visitFnArg(x))
+      fnArgs.map((x) => this.visitFnArg(x))
     );
   }
 
@@ -517,7 +528,7 @@ export class CWScriptASTVisitor extends AbstractParseTreeVisitor<AST>
 
   visitNormalFnBody(ctx: NormalFnBodyContext): List<Stmt> {
     let stmts = ctx.stmt() || [];
-    return new List(ctx, stmts.map(x => this.visit(x)) as Stmt[]);
+    return new List(ctx, stmts.map((x) => this.visit(x)) as Stmt[]);
   }
 
   visitArrowFnBody(ctx: ArrowFnBodyContext): List<Stmt> {
@@ -569,7 +580,7 @@ export class CWScriptASTVisitor extends AbstractParseTreeVisitor<AST>
     let defns = ctx.execDefnBlock_item() || [];
     return new List(
       ctx,
-      defns.map(x => this.visitExecDefn(x as ExecDefnContext))
+      defns.map((x) => this.visitExecDefn(x as ExecDefnContext))
     );
   }
 
@@ -602,7 +613,7 @@ export class CWScriptASTVisitor extends AbstractParseTreeVisitor<AST>
     let defns = ctx.queryDefnBlock_item() || [];
     return new List(
       ctx,
-      defns.map(x => this.visitQueryDefn(x as QueryDefnContext))
+      defns.map((x) => this.visitQueryDefn(x as QueryDefnContext))
     );
   }
 
@@ -633,7 +644,7 @@ export class CWScriptASTVisitor extends AbstractParseTreeVisitor<AST>
     let defns = ctx.execDeclBlock_item() || [];
     return new List(
       ctx,
-      defns.map(x => this.visitExecDecl(x as ExecDeclContext))
+      defns.map((x) => this.visitExecDecl(x as ExecDeclContext))
     );
   }
 
@@ -653,7 +664,7 @@ export class CWScriptASTVisitor extends AbstractParseTreeVisitor<AST>
     let defns = ctx.queryDeclBlock_item() || [];
     return new List(
       ctx,
-      defns.map(x => this.visitQueryDecl(x as QueryDeclContext))
+      defns.map((x) => this.visitQueryDecl(x as QueryDeclContext))
     );
   }
 
@@ -700,7 +711,7 @@ export class CWScriptASTVisitor extends AbstractParseTreeVisitor<AST>
       type,
       new List(
         ctx.exprList(),
-        items.map(x => this.visit(x))
+        items.map((x) => this.visit(x))
       )
     );
   }
@@ -711,7 +722,7 @@ export class CWScriptASTVisitor extends AbstractParseTreeVisitor<AST>
       ctx,
       new List(
         ctx.exprList(),
-        items.map(x => this.visit(x) as Expr)
+        items.map((x) => this.visit(x) as Expr)
       )
     );
   }
@@ -725,7 +736,7 @@ export class CWScriptASTVisitor extends AbstractParseTreeVisitor<AST>
       type,
       new List(
         structVal.structValMembers(),
-        members.map(x => this.visitStructValMember(x))
+        members.map((x) => this.visitStructValMember(x))
       )
     );
   }
@@ -797,7 +808,7 @@ export class CWScriptASTVisitor extends AbstractParseTreeVisitor<AST>
       fn,
       new List(
         ctx.exprList(),
-        args.map(x => this.visit(x))
+        args.map((x) => this.visit(x))
       )
     );
   }
@@ -812,7 +823,7 @@ export class CWScriptASTVisitor extends AbstractParseTreeVisitor<AST>
       fn,
       new List(
         ctx.namedExprList(),
-        args.map(x => this.visitNamedExpr(x))
+        args.map((x) => this.visitNamedExpr(x))
       )
     );
   }
@@ -838,7 +849,7 @@ export class CWScriptASTVisitor extends AbstractParseTreeVisitor<AST>
   visitStateMapAccessExpr(ctx: StateMapAccessExprContext): StateMapAccessExpr {
     let mapKeys = new List(
       ctx,
-      ctx._mapKeys.map(x => this.visit(x))
+      ctx._mapKeys.map((x) => this.visit(x))
     );
     return new StateMapAccessExpr(ctx, this.visitIdent(ctx._key), mapKeys);
   }
@@ -876,7 +887,7 @@ export class CWScriptASTVisitor extends AbstractParseTreeVisitor<AST>
       ctx
         .elseIfClauses()
         ?.ifClause_()
-        .map(x => this.visit(x) as IfClauseVariant) || [];
+        .map((x) => this.visit(x) as IfClauseVariant) || [];
     let elseClause = ctx.elseClause()?.fnBody();
     return new IfExpr(
       ctx,
@@ -913,11 +924,19 @@ export class CWScriptASTVisitor extends AbstractParseTreeVisitor<AST>
   }
 
   visitMsg(ctx: MsgContext): Msg {
-    return new Msg(ctx, this.visit(ctx.expr()), this.visit(ctx.ident()) as Ident, this.visit(ctx.exprList()) as ExprList);
+    return new Msg(
+      ctx,
+      this.visit(ctx.expr()),
+      this.visit(ctx.ident()) as Ident,
+      this.visit(ctx.exprList()) as ExprList
+    );
   }
 
   visitExprList(ctx: ExprListContext): ExprList {
-    return new ExprList(ctx, ctx.expr().map(x => this.visit(x) as Expr));
+    return new ExprList(
+      ctx,
+      ctx.expr().map((x) => this.visit(x) as Expr)
+    );
   }
 
   visitReturnStmt(ctx: ReturnStmtContext): ReturnStmt {
@@ -954,7 +973,7 @@ export class CWScriptASTVisitor extends AbstractParseTreeVisitor<AST>
       ctx._inner
         ? new List(
             ctx,
-            ctx._inner._paths.map(x => this.visitInnerPath(x))
+            ctx._inner._paths.map((x) => this.visitInnerPath(x))
           )
         : undefined
     );
@@ -964,7 +983,7 @@ export class CWScriptASTVisitor extends AbstractParseTreeVisitor<AST>
     let key = this.visitIdent(ctx._key);
     let mapKeys = new List(
       ctx._mapKeys,
-      ctx._mapKeys.map(x => this.visit(x))
+      ctx._mapKeys.map((x) => this.visit(x))
     );
     return new StateMapAssignLHS(
       ctx,
@@ -973,7 +992,7 @@ export class CWScriptASTVisitor extends AbstractParseTreeVisitor<AST>
       ctx._inner
         ? new List(
             ctx,
-            ctx._inner._paths.map(x => this.visitInnerPath(x))
+            ctx._inner._paths.map((x) => this.visitInnerPath(x))
           )
         : undefined
     );

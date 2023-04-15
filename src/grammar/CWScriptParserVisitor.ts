@@ -3,15 +3,15 @@
 
 import { ParseTreeVisitor } from "antlr4ts/tree/ParseTreeVisitor";
 
-import { UntypedClosureParamsContext } from "./CWScriptParser";
-import { TypedClosureParamsContext } from "./CWScriptParser";
-import { ImportAllStmtContext } from "./CWScriptParser";
-import { ImportItemsStmtContext } from "./CWScriptParser";
-import { StateItemDefnContext } from "./CWScriptParser";
-import { StateMapDefnContext } from "./CWScriptParser";
 import { IdentLHSContext } from "./CWScriptParser";
 import { DotLHSContext } from "./CWScriptParser";
 import { IndexLHSContext } from "./CWScriptParser";
+import { UntypedClosureParamsContext } from "./CWScriptParser";
+import { TypedClosureParamsContext } from "./CWScriptParser";
+import { StateDefn_ItemContext } from "./CWScriptParser";
+import { StateDefn_MapContext } from "./CWScriptParser";
+import { ImportAllStmtContext } from "./CWScriptParser";
+import { ImportItemsStmtContext } from "./CWScriptParser";
 import { StringLitContext } from "./CWScriptParser";
 import { IntLitContext } from "./CWScriptParser";
 import { DecLitContext } from "./CWScriptParser";
@@ -48,7 +48,7 @@ import { StructExprContext } from "./CWScriptParser";
 import { UnitVariantExprContext } from "./CWScriptParser";
 import { LiteralExprContext } from "./CWScriptParser";
 import { IdentExprContext } from "./CWScriptParser";
-import { GroupExprContext } from "./CWScriptParser";
+import { Grouped2ExprContext } from "./CWScriptParser";
 import { PureParamsContext } from "./CWScriptParser";
 import { StateParamsContext } from "./CWScriptParser";
 import { PathTContext } from "./CWScriptParser";
@@ -93,7 +93,7 @@ import { ErrorDefnBlockContext } from "./CWScriptParser";
 import { EventDefnContext } from "./CWScriptParser";
 import { EventDefnBlockContext } from "./CWScriptParser";
 import { StateDefnBlockContext } from "./CWScriptParser";
-import { StateDefn_itemContext } from "./CWScriptParser";
+import { StateDefnContext } from "./CWScriptParser";
 import { MapKeyDefnContext } from "./CWScriptParser";
 import { InstantiateDefnContext } from "./CWScriptParser";
 import { InstantiateDeclContext } from "./CWScriptParser";
@@ -118,9 +118,10 @@ import { CallOptsContext } from "./CWScriptParser";
 import { StmtContext } from "./CWScriptParser";
 import { LetStmt_Context } from "./CWScriptParser";
 import { ConstStmt_Context } from "./CWScriptParser";
+import { IdentBinding_Context } from "./CWScriptParser";
 import { Let_bindingContext } from "./CWScriptParser";
 import { AssignStmt_Context } from "./CWScriptParser";
-import { AssignLHS_Context } from "./CWScriptParser";
+import { AssignLHSContext } from "./CWScriptParser";
 import { ExprContext } from "./CWScriptParser";
 import { ClosureParamsContext } from "./CWScriptParser";
 import { ClosureContext } from "./CWScriptParser";
@@ -146,6 +147,30 @@ import { ReservedKeywordContext } from "./CWScriptParser";
  */
 export interface CWScriptParserVisitor<Result> extends ParseTreeVisitor<Result> {
 	/**
+	 * Visit a parse tree produced by the `IdentLHS`
+	 * labeled alternative in `CWScriptParser.assignLHS`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitIdentLHS?: (ctx: IdentLHSContext) => Result;
+
+	/**
+	 * Visit a parse tree produced by the `DotLHS`
+	 * labeled alternative in `CWScriptParser.assignLHS`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitDotLHS?: (ctx: DotLHSContext) => Result;
+
+	/**
+	 * Visit a parse tree produced by the `IndexLHS`
+	 * labeled alternative in `CWScriptParser.assignLHS`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitIndexLHS?: (ctx: IndexLHSContext) => Result;
+
+	/**
 	 * Visit a parse tree produced by the `UntypedClosureParams`
 	 * labeled alternative in `CWScriptParser.closureParams`.
 	 * @param ctx the parse tree
@@ -162,6 +187,22 @@ export interface CWScriptParserVisitor<Result> extends ParseTreeVisitor<Result> 
 	visitTypedClosureParams?: (ctx: TypedClosureParamsContext) => Result;
 
 	/**
+	 * Visit a parse tree produced by the `StateDefn_Item`
+	 * labeled alternative in `CWScriptParser.stateDefn`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitStateDefn_Item?: (ctx: StateDefn_ItemContext) => Result;
+
+	/**
+	 * Visit a parse tree produced by the `StateDefn_Map`
+	 * labeled alternative in `CWScriptParser.stateDefn`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitStateDefn_Map?: (ctx: StateDefn_MapContext) => Result;
+
+	/**
 	 * Visit a parse tree produced by the `ImportAllStmt`
 	 * labeled alternative in `CWScriptParser.importStmt`.
 	 * @param ctx the parse tree
@@ -176,46 +217,6 @@ export interface CWScriptParserVisitor<Result> extends ParseTreeVisitor<Result> 
 	 * @return the visitor result
 	 */
 	visitImportItemsStmt?: (ctx: ImportItemsStmtContext) => Result;
-
-	/**
-	 * Visit a parse tree produced by the `StateItemDefn`
-	 * labeled alternative in `CWScriptParser.stateDefn_item`.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	visitStateItemDefn?: (ctx: StateItemDefnContext) => Result;
-
-	/**
-	 * Visit a parse tree produced by the `StateMapDefn`
-	 * labeled alternative in `CWScriptParser.stateDefn_item`.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	visitStateMapDefn?: (ctx: StateMapDefnContext) => Result;
-
-	/**
-	 * Visit a parse tree produced by the `IdentLHS`
-	 * labeled alternative in `CWScriptParser.assignLHS_`.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	visitIdentLHS?: (ctx: IdentLHSContext) => Result;
-
-	/**
-	 * Visit a parse tree produced by the `DotLHS`
-	 * labeled alternative in `CWScriptParser.assignLHS_`.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	visitDotLHS?: (ctx: DotLHSContext) => Result;
-
-	/**
-	 * Visit a parse tree produced by the `IndexLHS`
-	 * labeled alternative in `CWScriptParser.assignLHS_`.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	visitIndexLHS?: (ctx: IndexLHSContext) => Result;
 
 	/**
 	 * Visit a parse tree produced by the `StringLit`
@@ -506,12 +507,12 @@ export interface CWScriptParserVisitor<Result> extends ParseTreeVisitor<Result> 
 	visitIdentExpr?: (ctx: IdentExprContext) => Result;
 
 	/**
-	 * Visit a parse tree produced by the `GroupExpr`
+	 * Visit a parse tree produced by the `Grouped2Expr`
 	 * labeled alternative in `CWScriptParser.expr`.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	visitGroupExpr?: (ctx: GroupExprContext) => Result;
+	visitGrouped2Expr?: (ctx: Grouped2ExprContext) => Result;
 
 	/**
 	 * Visit a parse tree produced by the `PureParams`
@@ -849,11 +850,11 @@ export interface CWScriptParserVisitor<Result> extends ParseTreeVisitor<Result> 
 	visitStateDefnBlock?: (ctx: StateDefnBlockContext) => Result;
 
 	/**
-	 * Visit a parse tree produced by `CWScriptParser.stateDefn_item`.
+	 * Visit a parse tree produced by `CWScriptParser.stateDefn`.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	visitStateDefn_item?: (ctx: StateDefn_itemContext) => Result;
+	visitStateDefn?: (ctx: StateDefnContext) => Result;
 
 	/**
 	 * Visit a parse tree produced by `CWScriptParser.mapKeyDefn`.
@@ -1024,6 +1025,13 @@ export interface CWScriptParserVisitor<Result> extends ParseTreeVisitor<Result> 
 	visitConstStmt_?: (ctx: ConstStmt_Context) => Result;
 
 	/**
+	 * Visit a parse tree produced by `CWScriptParser.identBinding_`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitIdentBinding_?: (ctx: IdentBinding_Context) => Result;
+
+	/**
 	 * Visit a parse tree produced by `CWScriptParser.let_binding`.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -1038,11 +1046,11 @@ export interface CWScriptParserVisitor<Result> extends ParseTreeVisitor<Result> 
 	visitAssignStmt_?: (ctx: AssignStmt_Context) => Result;
 
 	/**
-	 * Visit a parse tree produced by `CWScriptParser.assignLHS_`.
+	 * Visit a parse tree produced by `CWScriptParser.assignLHS`.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	visitAssignLHS_?: (ctx: AssignLHS_Context) => Result;
+	visitAssignLHS?: (ctx: AssignLHSContext) => Result;
 
 	/**
 	 * Visit a parse tree produced by `CWScriptParser.expr`.

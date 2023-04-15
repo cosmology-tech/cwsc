@@ -46,8 +46,12 @@ export class CWScriptCodegen {
 
     let env = this.envs[sourceFile.file];
     let inter = new AST2Intermediate();
-    sourceFile.ast.descendantsOfType(AST.InterfaceDefn).map(i => inter.translateInterface(i));
-    sourceFile.ast.descendantsOfType(AST.ContractDefn).map(i => inter.translateContractDefn(i));
+    sourceFile.ast
+      .descendantsOfType(AST.InterfaceDefn)
+      .map((i) => inter.translateInterface(i));
+    sourceFile.ast
+      .descendantsOfType(AST.ContractDefn)
+      .map((i) => inter.translateContractDefn(i));
 
     return new AST2Rust(env, inter).translateContractDefn(contractDefn);
   }

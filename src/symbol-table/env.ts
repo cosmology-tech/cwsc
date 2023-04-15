@@ -46,7 +46,7 @@ export class CWScriptEnv {
    * @returns the scope, or undefined if it does not exist
    */
   public getScope(id: string): CWScriptScope | undefined {
-    return this.scopes.find(s => s.id === id);
+    return this.scopes.find((s) => s.id === id);
   }
 
   /**

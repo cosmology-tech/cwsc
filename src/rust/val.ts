@@ -16,20 +16,20 @@ export namespace Val {
     constructor(value: string) {
       const match = /^\"(.*)\"$/.exec(value);
       if (!match || !match.length) {
-        throw new Error("Syntax Error: missing quotes around string");
+        throw new Error('Syntax Error: missing quotes around string');
       }
 
       const noQuotes = match[1];
-      if (/(\"+)/g.exec(noQuotes)?.filter(x => x.length % 2 == 1).length) {
-        throw new Error("Syntax Error: unbalanced quotes inside string");
+      if (/(\"+)/g.exec(noQuotes)?.filter((x) => x.length % 2 == 1).length) {
+        throw new Error('Syntax Error: unbalanced quotes inside string');
       }
 
       super();
-      this.value = match[1].replace(/""/g,'"');
+      this.value = match[1].replace(/""/g, '"');
     }
 
     toRustString(): string {
-      return `"${this.value.replace(/\\/g,'\\\\').replace(/\"/g,'\\"')}"`;
+      return `"${this.value.replace(/\\/g, '\\\\').replace(/\"/g, '\\"')}"`;
     }
   }
 
@@ -51,7 +51,7 @@ export namespace Val {
     }
 
     assignMember(name: string, value: Expr): Struct {
-      this.members = this.members.map(x => {
+      this.members = this.members.map((x) => {
         if (x.name === name) {
           return new StructMember(name, value);
         } else {
@@ -63,7 +63,7 @@ export namespace Val {
 
     toRustString(): string {
       return `${this.structType.toRustString()} { ${this.members
-        .map(x => x.toRustString())
+        .map((x) => x.toRustString())
         .join(', ')} }`;
     }
   }
@@ -78,13 +78,13 @@ export namespace Val {
     }
 
     toRustString(): string {
-      return `vec![${this.values.map(x => x.toRustString()).join(', ')}]`;
+      return `vec![${this.values.map((x) => x.toRustString()).join(', ')}]`;
     }
   }
 
   export class Tuple extends Val {
     public get rustType(): Type.Tuple {
-      return new Type.Tuple(this.members.map(x => x.rustType));
+      return new Type.Tuple(this.members.map((x) => x.rustType));
     }
 
     constructor(public members: Expr[]) {
@@ -92,7 +92,7 @@ export namespace Val {
     }
 
     toRustString(): string {
-      return `(${this.members.map(x => x.toRustString()).join(', ')})`;
+      return `(${this.members.map((x) => x.toRustString()).join(', ')})`;
     }
   }
 

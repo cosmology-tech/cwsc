@@ -1,7 +1,7 @@
 export function snakeToPascal(s: string): string {
   return s
     .split('_')
-    .map(x => x[0].toUpperCase() + x.slice(1))
+    .map((x) => x[0].toUpperCase() + x.slice(1))
     .join('');
 }
 

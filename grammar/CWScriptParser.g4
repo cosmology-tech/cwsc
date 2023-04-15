@@ -27,11 +27,11 @@ contractBlock: LBRACE (body+=contractItem)* RBRACE;
 // Import Statement
 importStmt:
 	// import * from "..."
-    IMPORT MUL FROM (src = StringLit) # ImportAllStmt
+    IMPORT MUL FROM (src = StringLiteral) # ImportAllStmt
     // import { a } from "..."
     | IMPORT (
         (LBRACE (items += ident) (COMMA items += ident)* RBRACE)
-    ) FROM (src = StringLit) # ImportItemsStmt;
+    ) FROM (src = StringLiteral) # ImportItemsStmt;
 
 contractItem:
     typeDefn
@@ -79,11 +79,11 @@ eventDefnBlock:
 // State
 stateDefnBlock:
     STATE LBRACE (
-    	defns += stateDefn_item
+    	defns += stateDefn
     )* RBRACE;
-stateDefn_item:
-	(name=ident) COLON (ty=typeExpr) (EQ (default=expr))? # StateItemDefn
-	| (name=ident) LBRACK (mapKeys+=mapKeyDefn) (COMMA (mapKeys+=mapKeyDefn))* RBRACK COLON (ty=typeExpr) (EQ (default=expr))? # StateMapDefn;
+stateDefn:
+	(name=ident) COLON (ty=typeExpr) (EQ (default=expr))? # StateDefn_Item
+	| (name=ident) LBRACK (mapKeys+=mapKeyDefn) (COMMA (mapKeys+=mapKeyDefn))* RBRACK COLON (ty=typeExpr) (EQ (default=expr))? # StateDefn_Map;
 
 mapKeyDefn: (name=ident)? COLON (ty=typeExpr);
 
@@ -149,7 +149,7 @@ stmt:
     | (ann+=annot)* forStmt_         # ForStmt
     | (ann+=annot)* EXEC_NOW expr (LBRACE ((options+=memberVal) (COMMA options+=memberVal)* COMMA?)? RBRACE)? # ExecStmt
     | (ann+=annot)* DELEGATE_EXEC HASH expr # DelegateExecStmt
-    | (ann+=annot)* INSTANTIATE_NOW (new=HASH)? expr # InstantiateStmt
+    | (ann+=annot)* INSTANTIATE_NOW (new=HASH)? expr (LBRACE ((options+=memberVal) (COMMA options+=memberVal)* COMMA?)? RBRACE)? # InstantiateStmt
     | (ann+=annot)* EMIT expr        # EmitStmt
     | (ann+=annot)* RETURN expr      # ReturnStmt
     | (ann+=annot)* FAIL expr        # FailStmt
@@ -158,14 +158,15 @@ stmt:
 letStmt_: LET let_binding (EQ expr)?;
 constStmt_: CONST ident EQ expr;
 
+identBinding_: (name=ident) (COLON ty = typeExpr)?;
 let_binding:
-    ident (COLON ty = typeExpr)?    # IdentBinding
-    | LBRACE (symbols+=ident) (COMMA symbols+= ident)* RBRACE            # StructBinding
-    | LBRACK (symbols+=ident) (COMMA symbols+= ident)* RBRACK            # TupleBinding;
+    identBinding_    # IdentBinding
+    | LBRACE (bindings+=identBinding_) (COMMA )* RBRACE            # StructBinding
+    | LBRACK (bindings+=identBinding_) (COMMA bindings+=identBinding_)* RBRACK            # TupleBinding;
 
 
 assignStmt_:
-    (lhs = assignLHS_) (assignOp = (
+    (lhs = assignLHS) (assignOp = (
         EQ
         | PLUS_EQ
         | MINUS_EQ
@@ -174,7 +175,7 @@ assignStmt_:
         | MOD_EQ
     )) (rhs = expr);
 
-assignLHS_:
+assignLHS:
     symbol=ident # IdentLHS
     | (obj = expr) DOT (member = ident) # DotLHS
     | (obj = expr) LBRACK (args+=expr) (COMMA args+=expr)* RBRACK  # IndexLHS;
@@ -203,14 +204,14 @@ expr:
     | expr OR (rhs=expr)                  # OrExpr
     | ifStmt_ # IfExpr
     | QUERY_NOW expr # QueryNowExpr
-    | FAIL expr # FailExpr
+    | FAIL expr? # FailExpr // TODO: might need a semicolon here
     | closure # ClosureExpr
     | LBRACK ((items+=expr) (COMMA (items+=expr))*)? RBRACK # TupleExpr
     | typeExpr? LBRACE ((members+=memberVal) (COMMA members+=memberVal)* COMMA?)? RBRACE # StructExpr
     | typeVariant # UnitVariantExpr
 	| literal # LiteralExpr
     | ident # IdentExpr
-    | expr TILDE # GroupExpr;
+    | expr TILDE # Grouped2Expr;
 
 closureParams:
 	BAR ((params+=ident) (COMMA params+=ident)*)? BAR # UntypedClosureParams

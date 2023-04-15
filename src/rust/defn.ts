@@ -58,13 +58,13 @@ export namespace Defn {
         case STRUCT:
           return this.withAnnotations(
             `pub struct ${this.name} { ${this.members
-              .map(x => x.toRustString())
+              .map((x) => x.toRustString())
               .join(', ')} }`
           );
         case TUPLE:
           return this.withAnnotations(
             `pub struct ${this.name}(${this.members
-              .map(x => x.toRustString())
+              .map((x) => x.toRustString())
               .join(', ')});`
           );
         case UNIT:
@@ -77,13 +77,13 @@ export namespace Defn {
         case STRUCT:
           return this.withAnnotations(
             `${this.name} { ${this.members
-              .map(x => x.toEnumVariantString())
+              .map((x) => x.toEnumVariantString())
               .join(', ')} }`
           );
         case TUPLE:
           return this.withAnnotations(
             `${this.name}(${this.members
-              .map(x => x.toEnumVariantString())
+              .map((x) => x.toEnumVariantString())
               .join(', ')})`
           );
         case UNIT:
@@ -109,7 +109,7 @@ export namespace Defn {
     toRustString(): string {
       return this.withAnnotations(
         `pub enum ${this.name} { ${this.variants
-          .map(x => x.toEnumVariantString())
+          .map((x) => x.toEnumVariantString())
           .join(',\n')} }`
       );
     }
@@ -133,7 +133,7 @@ export namespace Defn {
 
     toRustString(): string {
       return `pub mod ${this.name} { ${this.items
-        .map(x => x.toRustString())
+        .map((x) => x.toRustString())
         .join('\n')} }`;
     }
   }
@@ -182,11 +182,9 @@ export namespace Defn {
     toRustString(): string {
       return this.withAnnotations(
         `pub fn ${this.name}(${this.args
-          .map(x => x.toRustString())
-          .join(
-            ', '
-          )}) -> ${this.returnType.toRustString()} { ${this.body
-          .map(x => x.toRustString())
+          .map((x) => x.toRustString())
+          .join(', ')}) -> ${this.returnType.toRustString()} { ${this.body
+          .map((x) => x.toRustString())
           .join('\n')} }`
       );
     }
