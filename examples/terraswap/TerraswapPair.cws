@@ -1,21 +1,13 @@
 contract TerraswapPair {
 
-  // we declare our state variables here
   state {
-    pair_info: PairInfo // item
+    pair_info: PairInfo
   }
 
-  // we define a reply handler, which almost looks like a function definition
-  // or exec #z, etc.
-  // CWScript extracts away the concept of setting an id and then routing it
-  // to the right handleing logical.
-  // we don't provide any arguments because reply functions accept all of their
-  //  this is becase it is uinerarable
   reply.success register_pair() {
+
     let { tmp_pair_info } = $state
-    // parse_response!
-    // the parse_response!() function expects the context variable "$"
-    let response = Wasm.#instantiate::parse_response!($data)q
+    let response = Wasm.#instantiate::parse_response!($data)
     let response = instantiate #CW20::parse_response!($data)
 
     instantiate! #CW20(1, 2, 3) {
@@ -39,23 +31,17 @@ contract TerraswapPair {
     token_code_id: U64,
     asset_decimals: U8[2]
   ) {
-    // $xyz lets you access state variables
-    // inside you contract, you're allowed to use $xyz and the magic $ variable which contains
-    // the context relevant to your code.
     $state.pair_info = PairInfo {
       contract_addr: $env.contract.address,
       liquidity_token: Address.empty(),
       asset_infos: [
-        String!(msg.asset_infos[0]), // force the conversion
+        String!(msg.asset_infos[0]),
         String!(msg.asset_infos[1])
       ]
     }
 
     @gas_limit(500000)
-    @reply.on_success(register_pairs)
-
-    #CosmWasm.CW20()
-
+    @reply.success(register_pairs)
     instantiate! #CW20(
       12, "terraswap liquidity token", "uLP", 6, [], MinterResponse($env.contract.address)
     ) {
@@ -66,23 +52,12 @@ contract TerraswapPair {
 
   }
 
-  // now onto execute msgs
-  // the receive is special, because it captures the inner message
-  // like ExecuteMsg::Receive(CW20ReceiveMsg)
-  // rather than ExecuteMsg::Receive{ msg: CW20ReceiveMsg }
-  // we therefore just indicate it to the compiler to compile as a Tuple Struct Variant with *
   exec *#receive(msg: CW20.receive) {
     let msgbody = msg.msg
-    // the "is" operator does a typecheck
     if msgbody is CW20.Hook.Swap {
-      // within here, the editor should infer that msgbody is CW20.Hook.Swap type
       let { belief_price, max_spread, to } = msg.msg
       let authorized = false
       let config = pair_info
-      // you'll notice that "query_pools!" is the name of the function itself
-      // functions that end in ! are allowed to have fail statements or call other functions
-      // that end in !. These are called "fallible" functions. You can recover from a fallible
-      // function with an except .. else clause.
       for pool in pools {
         if to is AssetInfo.Token {
           if contract_addr == $info.sender {
@@ -99,7 +74,6 @@ contract TerraswapPair {
       	Address.validate!(to)
       } else none
 
-      // dangerous -- might give user a grave warning if they try do delegate context
       delegate_exec! #swap(
         Address(msg.sender),
         Asset(AssetInfo.Token(contract_addr), msg.amount),
@@ -114,7 +88,6 @@ contract TerraswapPair {
       }
 
       let sender_addr = Address.validate!(msg.sender)
-      // must be at the end, otherwise it would create a CWScript-internal re-entrancy risk
       exec! #withdraw_liquidity(sender_addr, msg.amount)
     }
   }
@@ -135,8 +108,7 @@ contract TerraswapPair {
     }
   }
 
-  // if $ is passed, all context variables from the passer are available
-  fn assert_sent_native_balancetoken_balance!($state) {
+  fn assert_sent_native_token_balance!($state) {
     for asset in assets {
       if asset is AssetInfo.NativeToken {
         let coin = $info.funds.find(|x| x.denom == denom)
@@ -173,9 +145,7 @@ contract TerraswapPair {
       }
     }
 
-    // TODO: assert slippage tolerance
     let { liquidity_token } = pair_info
-    // the & acts like a grouping operator, like $ in Haskell
     let total_share = query! $.token_info() ~ .total_supply
 
     let share = if total_share == 0 {
@@ -282,7 +252,7 @@ contract TerraswapPair {
     let { pair_info } = $state
     let { contract_addr } = pair_info
     let assets = query_pools!(pair_info, contract_addr)
-    let { total_share } = query! CW20#token_info()
+    let { total_share } = query! CW20(contract_addr).#token_info()
     return {
       assets, total_share
     }

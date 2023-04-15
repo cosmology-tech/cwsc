@@ -1,0 +1,1233 @@
+{
+  "name": {
+    "value": "CW20",
+    "$type": "Ident"
+  },
+  "body": {
+    "$type": "ContractBlock",
+    "$children": [
+      {
+        "$type": "AST"
+      },
+      {
+        "name": {
+          "value": "Transfer",
+          "$type": "Ident"
+        },
+        "members": {
+          "$type": "List",
+          "$children": [
+            {
+              "name": {
+                "value": "from",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Address",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            },
+            {
+              "name": {
+                "value": "to",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Address",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            },
+            {
+              "name": {
+                "value": "amount",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Int",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            }
+          ]
+        },
+        "isTuple": false,
+        "$type": "EventDefn"
+      },
+      {
+        "name": {
+          "value": "Burn",
+          "$type": "Ident"
+        },
+        "members": {
+          "$type": "List",
+          "$children": [
+            {
+              "name": {
+                "value": "from",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Address",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            },
+            {
+              "name": {
+                "value": "amount",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Int",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            }
+          ]
+        },
+        "isTuple": false,
+        "$type": "EventDefn"
+      },
+      {
+        "name": {
+          "value": "Mint",
+          "$type": "Ident"
+        },
+        "members": {
+          "$type": "List",
+          "$children": [
+            {
+              "name": {
+                "value": "to",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Address",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            },
+            {
+              "name": {
+                "value": "amount",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Int",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            }
+          ]
+        },
+        "isTuple": false,
+        "$type": "EventDefn"
+      },
+      {
+        "name": {
+          "value": "Send",
+          "$type": "Ident"
+        },
+        "members": {
+          "$type": "List",
+          "$children": [
+            {
+              "name": {
+                "value": "from",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Address",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            },
+            {
+              "name": {
+                "value": "to",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Address",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            },
+            {
+              "name": {
+                "value": "amount",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Int",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            }
+          ]
+        },
+        "isTuple": false,
+        "$type": "EventDefn"
+      },
+      {
+        "name": {
+          "value": "IncreaseAllowance",
+          "$type": "Ident"
+        },
+        "members": {
+          "$type": "List",
+          "$children": [
+            {
+              "name": {
+                "value": "owner",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Address",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            },
+            {
+              "name": {
+                "value": "spender",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Address",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            },
+            {
+              "name": {
+                "value": "amount",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Int",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            }
+          ]
+        },
+        "isTuple": false,
+        "$type": "EventDefn"
+      },
+      {
+        "name": {
+          "value": "DecreaseAllowance",
+          "$type": "Ident"
+        },
+        "members": {
+          "$type": "List",
+          "$children": [
+            {
+              "name": {
+                "value": "owner",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Address",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            },
+            {
+              "name": {
+                "value": "spender",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Address",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            },
+            {
+              "name": {
+                "value": "amount",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Int",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            }
+          ]
+        },
+        "isTuple": false,
+        "$type": "EventDefn"
+      },
+      {
+        "name": {
+          "value": "TransferFrom",
+          "$type": "Ident"
+        },
+        "members": {
+          "$type": "List",
+          "$children": [
+            {
+              "name": {
+                "value": "from",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Address",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            },
+            {
+              "name": {
+                "value": "to",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Address",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            },
+            {
+              "name": {
+                "value": "by",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Address",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            },
+            {
+              "name": {
+                "value": "amount",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Int",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            }
+          ]
+        },
+        "isTuple": false,
+        "$type": "EventDefn"
+      },
+      {
+        "name": {
+          "value": "BurnFrom",
+          "$type": "Ident"
+        },
+        "members": {
+          "$type": "List",
+          "$children": [
+            {
+              "name": {
+                "value": "from",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Address",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            },
+            {
+              "name": {
+                "value": "by",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Address",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            },
+            {
+              "name": {
+                "value": "amount",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Int",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            }
+          ]
+        },
+        "isTuple": false,
+        "$type": "EventDefn"
+      },
+      {
+        "name": {
+          "value": "Log",
+          "$type": "Ident"
+        },
+        "members": {
+          "$type": "List",
+          "$children": [
+            {
+              "name": {
+                "value": "from",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Address",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            },
+            {
+              "name": {
+                "value": "to",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Address",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            },
+            {
+              "name": {
+                "value": "by",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Address",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            },
+            {
+              "name": {
+                "value": "amount",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Int",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            }
+          ]
+        },
+        "isTuple": false,
+        "$type": "EventDefn"
+      },
+      {
+        "params": {
+          "$type": "List",
+          "$children": [
+            {
+              "name": {
+                "value": "name",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "String",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            },
+            {
+              "name": {
+                "value": "symbol",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "String",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            },
+            {
+              "name": {
+                "value": "decimals",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Uint8",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            },
+            {
+              "name": {
+                "value": "initial_balances",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "AST"
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            },
+            {
+              "name": {
+                "value": "mint",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "AST"
+              },
+              "optional": true,
+              "default_": null,
+              "$type": "Param"
+            }
+          ]
+        },
+        "$type": "InstantiateDecl"
+      },
+      {
+        "name": {
+          "value": "burn",
+          "$type": "Ident"
+        },
+        "params": {
+          "$type": "List",
+          "$children": [
+            {
+              "name": {
+                "value": "amount",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Int",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            }
+          ]
+        },
+        "tup": false,
+        "$type": "ExecDecl"
+      },
+      {
+        "name": {
+          "value": "mint",
+          "$type": "Ident"
+        },
+        "params": {
+          "$type": "List",
+          "$children": [
+            {
+              "name": {
+                "value": "recipient",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "String",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            }
+          ]
+        },
+        "tup": false,
+        "$type": "ExecDecl"
+      },
+      {
+        "name": {
+          "value": "send",
+          "$type": "Ident"
+        },
+        "params": {
+          "$type": "List",
+          "$children": [
+            {
+              "name": {
+                "value": "contract",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "String",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            },
+            {
+              "name": {
+                "value": "amount",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Int",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            },
+            {
+              "name": {
+                "value": "msg",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Binary",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            }
+          ]
+        },
+        "tup": false,
+        "$type": "ExecDecl"
+      },
+      {
+        "name": {
+          "value": "increase_allowance",
+          "$type": "Ident"
+        },
+        "params": {
+          "$type": "List",
+          "$children": [
+            {
+              "name": {
+                "value": "spender",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "String",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            },
+            {
+              "name": {
+                "value": "amount",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Int",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            },
+            {
+              "name": {
+                "value": "expires",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Expiration",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": true,
+              "default_": null,
+              "$type": "Param"
+            }
+          ]
+        },
+        "tup": false,
+        "$type": "ExecDecl"
+      },
+      {
+        "name": {
+          "value": "decrease_allowance",
+          "$type": "Ident"
+        },
+        "params": {
+          "$type": "List",
+          "$children": [
+            {
+              "name": {
+                "value": "spender",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "String",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            },
+            {
+              "name": {
+                "value": "amount",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Int",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            },
+            {
+              "name": {
+                "value": "expires",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Expiration",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": true,
+              "default_": null,
+              "$type": "Param"
+            }
+          ]
+        },
+        "tup": false,
+        "$type": "ExecDecl"
+      },
+      {
+        "name": {
+          "value": "transfer_from",
+          "$type": "Ident"
+        },
+        "params": {
+          "$type": "List",
+          "$children": [
+            {
+              "name": {
+                "value": "owner",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "String",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            },
+            {
+              "name": {
+                "value": "recipient",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "String",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            },
+            {
+              "name": {
+                "value": "amount",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Int",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            }
+          ]
+        },
+        "tup": false,
+        "$type": "ExecDecl"
+      },
+      {
+        "name": {
+          "value": "burn_from",
+          "$type": "Ident"
+        },
+        "params": {
+          "$type": "List",
+          "$children": [
+            {
+              "name": {
+                "value": "owner",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "String",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            },
+            {
+              "name": {
+                "value": "amount",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Int",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            }
+          ]
+        },
+        "tup": false,
+        "$type": "ExecDecl"
+      },
+      {
+        "name": {
+          "value": "send_from",
+          "$type": "Ident"
+        },
+        "params": {
+          "$type": "List",
+          "$children": [
+            {
+              "name": {
+                "value": "owner",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "String",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            },
+            {
+              "name": {
+                "value": "contract",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "String",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            },
+            {
+              "name": {
+                "value": "amount",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Int",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            },
+            {
+              "name": {
+                "value": "msg",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "Binary",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            }
+          ]
+        },
+        "tup": false,
+        "$type": "ExecDecl"
+      },
+      {
+        "name": {
+          "value": "balance",
+          "$type": "Ident"
+        },
+        "params": {
+          "$type": "List",
+          "$children": [
+            {
+              "name": {
+                "value": "address",
+                "$type": "Ident"
+              },
+              "ty": {
+                "$type": "TypePath",
+                "$children": [
+                  {
+                    "value": "String",
+                    "$type": "Ident"
+                  }
+                ]
+              },
+              "optional": false,
+              "default_": null,
+              "$type": "Param"
+            }
+          ]
+        },
+        "retTy": {
+          "$type": "AST"
+        },
+        "tup": false,
+        "$type": "QueryDecl"
+      },
+      {
+        "name": {
+          "value": "token_info",
+          "$type": "Ident"
+        },
+        "params": {
+          "$type": "List",
+          "$children": []
+        },
+        "retTy": {
+          "$type": "AST"
+        },
+        "tup": false,
+        "$type": "QueryDecl"
+      },
+      {
+        "name": {
+          "value": "minter",
+          "$type": "Ident"
+        },
+        "params": {
+          "$type": "List",
+          "$children": []
+        },
+        "retTy": {
+          "$type": "AST"
+        },
+        "tup": false,
+        "$type": "QueryDecl"
+      }
+    ]
+  },
+  "base": null,
+  "$type": "InterfaceDefn"
+}

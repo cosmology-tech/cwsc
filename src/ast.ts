@@ -40,7 +40,6 @@ export class AST {
   public toJSON(): any {
     let res: any = {};
     for (const key of Object.keys(this)) {
-      console.log(key);
       //@ts-ignore
       if (key === '$parent' || key === '$ctx') {
         continue;

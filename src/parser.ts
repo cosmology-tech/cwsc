@@ -542,11 +542,14 @@ export class Parser {
   }
 }
 
-import { readFileSync } from 'fs';
+import { readFileSync, writeFileSync } from 'fs';
 import { Param } from './ast';
 
 let parser = Parser.fromString(
   readFileSync('./examples/terraswap/TerraswapToken.cws', 'utf8')
 );
 let ast = parser.buildAST();
-console.log(JSON.stringify(ast.toJSON(), null, 2));
+writeFileSync(
+  'output-x.json',
+  JSON.stringify(ast.$children[0].toJSON(), null, 2)
+);
