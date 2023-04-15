@@ -361,12 +361,6 @@ export class Annotation extends AST {
   }
 }
 
-export class Annotated extends List<Annotation> {
-  constructor(public $children: Annotation[], public expr: Expr) {
-    super($children);
-  }
-}
-
 export enum AssignOp {
   EQ = '=',
   PLUS_EQ = '+=',
@@ -470,7 +464,7 @@ export class FnCallExpr extends AST {
   constructor(
     public func: Expr | TypeExpr,
     public tries: boolean = false,
-    public args: List<Arg>
+    public args: List<Arg> = List.empty()
   ) {
     super();
   }
@@ -538,7 +532,7 @@ export class ShortTryExpr extends AST {
 export class TryCatchElseExpr extends AST {
   constructor(
     public body: Block,
-    public catch_: CatchClause[] = [],
+    public catch_: List<CatchClause> = List.empty(),
     public else_: Block | null = null
   ) {
     super();
