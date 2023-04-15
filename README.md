@@ -1,6 +1,6 @@
 # `cwsc`: CWScript Compiler
 
-Welcome to cwsc, the standard reference implementation compiler for CWScript, a language designed specifically for the CosmWasm smart contract ecosystem. This repository is your gateway to exploring the full potential of CWScript, a language that aims to simplify smart contract development and bring forth a new era of innovation in the CosmWasm ecosystem.
+CWScript is a high-level programming language designed for writing smart contracts on the CosmWasm platform. It is focused on simplifying the process of creating smart contracts while maintaining compatibility with Rust and CosmWasm programming patterns. CWScript enforces a more constrained framework for writing smart contracts, allowing developers to build on a well-defined domain. This approach aims to streamline code organization, composability patterns, and the overall development experience.
 
 cwsc is written in TypeScript and requires Node.js v16 or later.
 
@@ -62,7 +62,7 @@ contract HelloWorld {
 contract MyToken {
     state {
         total_supply: Uint128,
-        balances: Map<Address, Uint128>
+        balances[Address]: Uint128 = 0
     }
 
     #instantiate(initial_supply: Uint128) {
