@@ -46,7 +46,6 @@ import {
   LetStmtContext,
   MapKeyDefnContext,
   ParamContext,
-  PureParamsContext,
   QueryDeclContext,
   QueryDefnContext,
   ReplyDefnContext,
@@ -55,7 +54,6 @@ import {
   StateDefnBlockContext,
   StateDefn_MapContext,
   StateDefn_ItemContext,
-  StateParamsContext,
   StringLitContext,
   StructBindingContext,
   StructDefn_fnContext,
@@ -69,6 +67,15 @@ import {
   MulExprContext,
   AddExprContext,
   ElseClauseContext,
+  CompExprContext,
+  EqExprContext,
+  NoneCheckExprContext,
+  IsExprContext,
+  InExprContext,
+  ShortTryExprContext,
+  CallOptionsContext,
+  FnParamsContext,
+  ParamListContext,
 } from './grammar/CWScriptParser';
 import { CWScriptLexer } from './grammar/CWScriptLexer';
 import { CharStreams, CommonTokenStream, ParserRuleContext } from 'antlr4ts';
@@ -104,7 +111,6 @@ export class CWScriptASTVisitor
 
   visitInterfaceDefn(ctx: InterfaceDefnContext): AST.InterfaceDefn {
     let name = this.visitIdent(ctx._name);
-    console.log(Object.keys(ctx));
     let body = this.visitContractBlock(ctx._body);
     let base = ctx._base ? this.visitTypePath(ctx._base) : null;
     return new AST.InterfaceDefn(name, body, base).$(ctx);
@@ -164,23 +170,14 @@ export class CWScriptASTVisitor
 
   visitFnDefn(ctx: FnDefnContext): AST.FnDefn {
     let name = this.visitIdent(ctx._name);
-    let params = this.visit(ctx._params) as AST.List<AST.Param>;
+    let params = this.visitFnParams(ctx._params);
     let retTy = ctx._retTy ? (this.visit(ctx._retTy) as AST.TypeExpr) : null;
     let body = this.visit(ctx._body);
     return new AST.FnDefn(name, params, retTy, body as AST.Block).$(ctx);
   }
 
-  visitPureParams(ctx: PureParamsContext): AST.List<Param> {
-    return new AST.List<Param>(ctx._params.map((x) => this.visitParam(x))).$(
-      ctx
-    );
-  }
-
-  visitStateParams(ctx: StateParamsContext): AST.List<Param> {
-    // TODO: add state params
-    return new AST.List<Param>(ctx._params.map((x) => this.visitParam(x))).$(
-      ctx
-    );
+  visitFnParams(ctx: FnParamsContext): AST.List<AST.Param> {
+    return this.vlist<AST.Param>(ctx._params).$(ctx);
   }
 
   visitMapKeyDefn(ctx: MapKeyDefnContext): AST.MapKeyDefn {
@@ -190,32 +187,32 @@ export class CWScriptASTVisitor
   }
 
   visitInstantiateDefn(ctx: InstantiateDefnContext): AST.InstantiateDefn {
-    let params = this.visit(ctx._params) as AST.List<AST.Param>;
+    let params = this.visitFnParams(ctx._params);
     let body = this.visit(ctx._body) as AST.Block;
     return new AST.InstantiateDefn(params, body).$(ctx);
   }
 
   visitInstantiateDecl(ctx: InstantiateDeclContext): AST.InstantiateDecl {
-    let params = this.visit(ctx._params) as AST.List<AST.Param>;
+    let params = this.visitFnParams(ctx._params);
     return new AST.InstantiateDecl(params).$(ctx);
   }
 
   visitExecDefn(ctx: ExecDefnContext): AST.ExecDefn {
     let name = this.visitIdent(ctx._name);
-    let params = this.visit(ctx._params) as AST.List<AST.Param>;
+    let params = this.visitFnParams(ctx._params);
     let body = this.visit(ctx._body) as AST.Block;
     return new AST.ExecDefn(name, params, body).$(ctx);
   }
 
   visitExecDecl(ctx: ExecDeclContext): AST.ExecDecl {
     let name = this.visitIdent(ctx._name);
-    let params = this.visit(ctx._params) as AST.List<AST.Param>;
+    let params = this.visitFnParams(ctx._params);
     return new AST.ExecDecl(name, params).$(ctx);
   }
 
   visitQueryDefn(ctx: QueryDefnContext): AST.QueryDefn {
     let name = this.visitIdent(ctx._name);
-    let params = this.visit(ctx._params) as AST.List<AST.Param>;
+    let params = this.visitFnParams(ctx._params);
     let retTy = ctx._retTy ? (this.visit(ctx._retTy) as AST.TypeExpr) : null;
     let body = this.visit(ctx._body) as AST.Block;
     return new AST.QueryDefn(name, params, retTy, body).$(ctx);
@@ -223,20 +220,20 @@ export class CWScriptASTVisitor
 
   visitQueryDecl(ctx: QueryDeclContext): AST.QueryDecl {
     let name = this.visitIdent(ctx._name);
-    let params = this.visit(ctx._params) as AST.List<AST.Param>;
+    let params = this.visitFnParams(ctx._params);
     let retTy = ctx._retTy ? (this.visit(ctx._retTy) as AST.TypeExpr) : null;
     return new AST.QueryDecl(name, params, retTy).$(ctx);
   }
 
   visitErrorDefn(ctx: ErrorDefnContext): AST.ErrorDefn {
     let name = this.visitIdent(ctx._defn._name);
-    let params = this.visit(ctx._defn._params) as AST.List<AST.Param>;
+    let params = this.visitFnParams(ctx._defn._params);
     return new AST.ErrorDefn(name, params).$(ctx);
   }
 
   visitStructDefn_fn(ctx: StructDefn_fnContext): AST.StructDefn {
     let name = this.visitIdent(ctx._name);
-    let params = this.visit(ctx._params) as AST.List<AST.Param>;
+    let params = this.visitFnParams(ctx._params);
     return new AST.StructDefn(name, params).$(ctx);
   }
 
@@ -251,7 +248,7 @@ export class CWScriptASTVisitor
   visitEventDefn(ctx: EventDefnContext): AST.EventDefn {
     let defn = ctx.structDefn_fn();
     let name = this.visitIdent(defn._name);
-    let params = this.visit(defn._params) as AST.List<AST.Param>;
+    let params = this.visitFnParams(defn._params);
     return new AST.EventDefn(name, params).$(ctx);
   }
 
@@ -265,7 +262,7 @@ export class CWScriptASTVisitor
 
   visitReplyDefn(ctx: ReplyDefnContext): AST.ReplyDefn {
     let name = this.visitIdent(ctx._name);
-    let params = this.visit(ctx._params) as AST.List<AST.Param>;
+    let params = this.visitFnParams(ctx._params);
     let body = this.visit(ctx._body) as AST.Block;
     return new AST.ReplyDefn(name, params, body).$(ctx);
   }
@@ -280,8 +277,12 @@ export class CWScriptASTVisitor
 
   visitVariant_struct(ctx: Variant_structContext): AST.EnumVariantStruct {
     let name = this.visitIdent(ctx._name);
-    let params = this.visit(ctx._members) as AST.List<AST.Param>;
-    return new AST.EnumVariantStruct(name, params).$(ctx);
+    let members = this.visitParamList(ctx._members);
+    return new AST.EnumVariantStruct(name, members).$(ctx);
+  }
+
+  visitParamList(ctx: ParamListContext): AST.List<AST.Param> {
+    return this.vlist<AST.Param>(ctx.param()).$(ctx);
   }
 
   visitVariant_unit(ctx: Variant_unitContext): AST.EnumVariantUnit {
@@ -361,7 +362,8 @@ export class CWScriptASTVisitor
 
   visitExecStmt(ctx: ExecStmtContext): AST.ExecStmt {
     let expr = this.visit(ctx.expr()) as AST.Expr;
-    return new AST.ExecStmt(expr).$(ctx);
+    let options = this.visitCallOptions(ctx._options);
+    return new AST.ExecStmt(expr, options).$(ctx);
   }
 
   visitDelegateExecStmt(ctx: DelegateExecStmtContext): AST.DelegateExecStmt {
@@ -372,8 +374,12 @@ export class CWScriptASTVisitor
   visitInstantiateStmt(ctx: InstantiateStmtContext): AST.InstantiateStmt {
     let expr = this.visit(ctx.expr()) as AST.TypePath;
     let new_ = !!ctx._new;
-    let options = this.vlist<AST.MemberVal>(ctx._options);
+    let options = this.visitCallOptions(ctx._options);
     return new AST.InstantiateStmt(expr, new_, options).$(ctx);
+  }
+
+  visitCallOptions(ctx: CallOptionsContext): AST.List<AST.MemberVal> {
+    return this.vlist<AST.MemberVal>(ctx.memberVal()).$(ctx);
   }
 
   visitEmitStmt(ctx: EmitStmtContext): AST.EmitStmt {
@@ -490,18 +496,57 @@ export class CWScriptASTVisitor
     return new AST.FnCallExpr(obj, fallible, args).$(ctx);
   }
 
-  visitMulExpr(ctx: MulExprContext): AST.MathExpr {
+  visitMulExpr(ctx: MulExprContext): AST.BinOp {
     const lhs = this.visit(ctx.expr()[0]) as AST.Expr;
-    const op = ctx._op.text as AST.MathOp;
+    const op = ctx._op.text as AST.Op;
     const rhs = this.visit(ctx._rhs) as AST.Expr;
-    return new AST.MathExpr(lhs, op, rhs).$(ctx);
+    return new AST.BinOp(lhs, op, rhs).$(ctx);
   }
 
-  visitAddExpr(ctx: AddExprContext): AST.MathExpr {
+  visitAddExpr(ctx: AddExprContext): AST.BinOp {
     const lhs = this.visit(ctx.expr()[0]) as AST.Expr;
-    const op = ctx._op.text as AST.MathOp;
+    const op = ctx._op.text as AST.Op;
     const rhs = this.visit(ctx._rhs) as AST.Expr;
-    return new AST.MathExpr(lhs, op, rhs).$(ctx);
+    return new AST.BinOp(lhs, op, rhs).$(ctx);
+  }
+
+  visitCompExpr(ctx: CompExprContext): AST.BinOp {
+    const lhs = this.visit(ctx.expr()[0]) as AST.Expr;
+    const op = ctx._op.text as AST.Op;
+    const rhs = this.visit(ctx._rhs) as AST.Expr;
+    return new AST.BinOp(lhs, op, rhs).$(ctx);
+  }
+
+  visitEqExpr(ctx: EqExprContext): AST.BinOp {
+    const lhs = this.visit(ctx.expr()[0]) as AST.Expr;
+    const op = ctx._op.text as AST.Op;
+    const rhs = this.visit(ctx._rhs) as AST.Expr;
+    return new AST.BinOp(lhs, op, rhs).$(ctx);
+  }
+
+  visitNoneCheckExpr(ctx: NoneCheckExprContext): AST.NoneCheckExpr {
+    const obj = this.visit(ctx.expr()) as AST.Expr;
+    return new AST.NoneCheckExpr(obj).$(ctx);
+  }
+
+  visitIsExpr(ctx: IsExprContext): AST.IsExpr {
+    const lhs = this.visit(ctx.expr()) as AST.Expr;
+    const rhs = this.visit(ctx._rhs) as AST.TypeExpr;
+    return new AST.IsExpr(lhs, rhs).$(ctx);
+  }
+
+  visitInExpr(ctx: InExprContext): AST.BinOp {
+    const lhs = this.visit(ctx.expr()[0]) as AST.Expr;
+    const rhs = this.visit(ctx._rhs) as AST.Expr;
+    return new AST.BinOp(lhs, AST.Op.IN, rhs).$(ctx);
+  }
+
+  visitShortTryExpr(ctx: ShortTryExprContext): AST.TryCatchElseExpr {
+    let lhs = this.visit(ctx.expr()[0]) as AST.Expr;
+    let rhs = this.visit(ctx._rhs) as AST.Expr;
+    let body = new AST.Block([lhs]).$(ctx.expr()[0]);
+    let else_ = new AST.Block([rhs]).$(ctx._rhs);
+    return new AST.TryCatchElseExpr(body, AST.List.empty(), else_).$(ctx);
   }
 
   visitIdent(ctx: IdentContext): AST.Ident {
@@ -549,7 +594,18 @@ let parser = Parser.fromString(
   readFileSync('./examples/terraswap/TerraswapToken.cws', 'utf8')
 );
 let ast = parser.buildAST();
-writeFileSync(
-  'output-x.json',
-  JSON.stringify(ast.$children[0].toJSON(), null, 2)
-);
+
+function prettyPrint(node: any, depth = 0) {
+  let { $type, $children, ...keys } = node;
+  let indent = ' '.repeat(depth);
+  let res = indent + $type;
+  for (let key in keys) {
+    res += ' ' + key + ': ' + keys[key];
+  }
+  console.log(res);
+  for (let child of $children) {
+    prettyPrint(child, depth + 1);
+  }
+}
+
+prettyPrint(ast.toJSON());

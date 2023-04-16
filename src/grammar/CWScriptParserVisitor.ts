@@ -6,8 +6,6 @@ import { ParseTreeVisitor } from "antlr4ts/tree/ParseTreeVisitor";
 import { IdentLHSContext } from "./CWScriptParser";
 import { DotLHSContext } from "./CWScriptParser";
 import { IndexLHSContext } from "./CWScriptParser";
-import { UntypedClosureParamsContext } from "./CWScriptParser";
-import { TypedClosureParamsContext } from "./CWScriptParser";
 import { StateDefn_ItemContext } from "./CWScriptParser";
 import { StateDefn_MapContext } from "./CWScriptParser";
 import { ImportAllStmtContext } from "./CWScriptParser";
@@ -49,8 +47,6 @@ import { UnitVariantExprContext } from "./CWScriptParser";
 import { LiteralExprContext } from "./CWScriptParser";
 import { IdentExprContext } from "./CWScriptParser";
 import { Grouped2ExprContext } from "./CWScriptParser";
-import { PureParamsContext } from "./CWScriptParser";
-import { StateParamsContext } from "./CWScriptParser";
 import { PathTContext } from "./CWScriptParser";
 import { VariantTContext } from "./CWScriptParser";
 import { InstantiateTContext } from "./CWScriptParser";
@@ -85,7 +81,6 @@ import { ImportStmtContext } from "./CWScriptParser";
 import { ContractItemContext } from "./CWScriptParser";
 import { ParamContext } from "./CWScriptParser";
 import { ParamListContext } from "./CWScriptParser";
-import { StateParamContext } from "./CWScriptParser";
 import { FnParamsContext } from "./CWScriptParser";
 import { StructDefn_fnContext } from "./CWScriptParser";
 import { ErrorDefnContext } from "./CWScriptParser";
@@ -114,7 +109,7 @@ import { StructDefnContext } from "./CWScriptParser";
 import { TypeAliasDefnContext } from "./CWScriptParser";
 import { FnDefnContext } from "./CWScriptParser";
 import { AnnotContext } from "./CWScriptParser";
-import { CallOptsContext } from "./CWScriptParser";
+import { CallOptionsContext } from "./CWScriptParser";
 import { StmtContext } from "./CWScriptParser";
 import { LetStmt_Context } from "./CWScriptParser";
 import { ConstStmt_Context } from "./CWScriptParser";
@@ -169,22 +164,6 @@ export interface CWScriptParserVisitor<Result> extends ParseTreeVisitor<Result> 
 	 * @return the visitor result
 	 */
 	visitIndexLHS?: (ctx: IndexLHSContext) => Result;
-
-	/**
-	 * Visit a parse tree produced by the `UntypedClosureParams`
-	 * labeled alternative in `CWScriptParser.closureParams`.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	visitUntypedClosureParams?: (ctx: UntypedClosureParamsContext) => Result;
-
-	/**
-	 * Visit a parse tree produced by the `TypedClosureParams`
-	 * labeled alternative in `CWScriptParser.closureParams`.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	visitTypedClosureParams?: (ctx: TypedClosureParamsContext) => Result;
 
 	/**
 	 * Visit a parse tree produced by the `StateDefn_Item`
@@ -515,22 +494,6 @@ export interface CWScriptParserVisitor<Result> extends ParseTreeVisitor<Result> 
 	visitGrouped2Expr?: (ctx: Grouped2ExprContext) => Result;
 
 	/**
-	 * Visit a parse tree produced by the `PureParams`
-	 * labeled alternative in `CWScriptParser.fnParams`.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	visitPureParams?: (ctx: PureParamsContext) => Result;
-
-	/**
-	 * Visit a parse tree produced by the `StateParams`
-	 * labeled alternative in `CWScriptParser.fnParams`.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	visitStateParams?: (ctx: StateParamsContext) => Result;
-
-	/**
 	 * Visit a parse tree produced by the `PathT`
 	 * labeled alternative in `CWScriptParser.typeExpr`.
 	 * @param ctx the parse tree
@@ -794,13 +757,6 @@ export interface CWScriptParserVisitor<Result> extends ParseTreeVisitor<Result> 
 	visitParamList?: (ctx: ParamListContext) => Result;
 
 	/**
-	 * Visit a parse tree produced by `CWScriptParser.stateParam`.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	visitStateParam?: (ctx: StateParamContext) => Result;
-
-	/**
 	 * Visit a parse tree produced by `CWScriptParser.fnParams`.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -997,11 +953,11 @@ export interface CWScriptParserVisitor<Result> extends ParseTreeVisitor<Result> 
 	visitAnnot?: (ctx: AnnotContext) => Result;
 
 	/**
-	 * Visit a parse tree produced by `CWScriptParser.callOpts`.
+	 * Visit a parse tree produced by `CWScriptParser.callOptions`.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	visitCallOpts?: (ctx: CallOptsContext) => Result;
+	visitCallOptions?: (ctx: CallOptionsContext) => Result;
 
 	/**
 	 * Visit a parse tree produced by `CWScriptParser.stmt`.

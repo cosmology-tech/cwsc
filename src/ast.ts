@@ -38,7 +38,7 @@ export class AST {
   }
 
   public toJSON(): any {
-    let res: any = {};
+    let res: any = { $children: [] };
     for (const key of Object.keys(this)) {
       //@ts-ignore
       if (key === '$parent' || key === '$ctx') {
@@ -48,16 +48,14 @@ export class AST {
       // @ts-ignore
       if (AST.isNode(this[key])) {
         // @ts-ignore
-        res[key] = this[key].toJSON();
+        res.$children.push(this[key].toJSON());
         // @ts-ignore
-      } else if (Array.isArray(this[key])) {
-        // @ts-ignore
-        res[key] = this[key].map((x) => x.toJSON());
       } else {
         // @ts-ignore
         res[key] = this[key];
       }
     }
+
     res['$type'] = this.constructor.name;
     return res;
   }
@@ -470,55 +468,38 @@ export class FnCallExpr extends AST {
   }
 }
 
-export enum MathOp {
-  PLUS = '+',
-  MINUS = '-',
-  MUL = '*',
-  DIV = '/',
-  MOD = '%',
-}
-
-export class MathExpr extends AST {
-  constructor(public lhs: Expr, public op: MathOp, public rhs: Expr) {
-    super();
-  }
-}
-
-export enum CompOp {
+export enum Op {
   EQ = '==',
   NEQ = '!=',
   LT = '<',
   LTE = '<=',
   GT = '>',
   GTE = '>=',
+  PLUS = '+',
+  MINUS = '-',
+  MUL = '*',
+  DIV = '/',
+  MOD = '%',
+  IN = 'in',
+  IS = 'is',
+  AND = 'and',
+  OR = 'or',
 }
 
-export class CompExpr extends AST {
-  constructor(public lhs: Expr, public op: CompOp, public rhs: Expr) {
+export class BinOp extends AST {
+  constructor(public lhs: Expr, public op: Op, public rhs: Expr) {
+    super();
+  }
+}
+
+export class IsExpr extends AST {
+  constructor(public lhs: Expr, public rhs: TypeExpr) {
     super();
   }
 }
 
 export class NoneCheckExpr extends AST {
   constructor(public expr: Expr) {
-    super();
-  }
-}
-
-export class IsExpr extends AST {
-  constructor(public expr: Expr, public ty: TypeExpr) {
-    super();
-  }
-}
-
-export class AndExpr extends AST {
-  constructor(public lhs: Expr, public rhs: Expr) {
-    super();
-  }
-}
-
-export class OrExpr extends AST {
-  constructor(public lhs: Expr, public rhs: Expr) {
     super();
   }
 }
@@ -599,12 +580,7 @@ export type Expr =
   | IndexExpr
   | DColonExpr
   | FnCallExpr
-  | MathExpr
-  | CompExpr
   | NoneCheckExpr
-  | IsExpr
-  | AndExpr
-  | OrExpr
   | ShortTryExpr
   | TryCatchElseExpr
   | NotExpr
@@ -722,7 +698,10 @@ export type Stmt =
   | Expr;
 
 export class ExecStmt extends AST {
-  constructor(public expr: Expr, public options: MemberVal[] = []) {
+  constructor(
+    public expr: Expr,
+    public options: List<MemberVal> = List.empty()
+  ) {
     super();
   }
 }

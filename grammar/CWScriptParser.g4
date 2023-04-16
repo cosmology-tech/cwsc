@@ -52,12 +52,10 @@ contractItem:
     | replyDefn;
 
 // a[?] : b [= c]
-param: (name = ident) (optional=QUEST)? COLON (ty = typeExpr) (EQ default=expr)?;
+param: (name = ident) (optional=QUEST)? (COLON (ty = typeExpr) (EQ default=expr)?)?;
 paramList: param (COMMA param)*;
-stateParam: (mut=MUT)? ident; // must be $state (there will be a check)
 fnParams:
-	LPAREN ((params+=param) (COMMA params+=param)*)? RPAREN # PureParams
-	| LPAREN (stateful=stateParam) (COMMA (params+=param) (COMMA params+=param)*)? RPAREN # StateParams;
+	LPAREN ((params+=param) (COMMA params+=param)*)? RPAREN;
 
 structDefn_fn: (name = ident) (params=fnParams);
 
@@ -85,7 +83,7 @@ stateDefn:
 	(name=ident) COLON (ty=typeExpr) (EQ (default=expr))? # StateDefn_Item
 	| (name=ident) LBRACK (mapKeys+=mapKeyDefn) (COMMA (mapKeys+=mapKeyDefn))* RBRACK COLON (ty=typeExpr) (EQ (default=expr))? # StateDefn_Map;
 
-mapKeyDefn: (name=ident)? COLON (ty=typeExpr);
+mapKeyDefn: ((name=ident) COLON)? (ty=typeExpr);
 
 // Instantiate
 instantiateDefn: HASH INSTANTIATE params=fnParams body=block;
@@ -109,6 +107,7 @@ enumDefn: ENUM (name = ident) LBRACE variants+=variant_ ((variants+=variant_) CO
 variant_: variant_struct | variant_unit;
 variant_struct: HASH (name = ident) LPAREN (members=paramList)? RPAREN
 	| HASH (name = ident) LBRACE (members=paramList)? RBRACE;
+
 variant_unit: HASH (name = ident);
 
 // Type Expressions
@@ -138,7 +137,7 @@ fnDefn: FN (name = ident) (fallible=BANG)? params=fnParams (ARROW retTy=typeExpr
 
 annot: AT (path = typePath) (LPAREN (args+=arg)? RPAREN)?;
 
-callOpts: (LBRACE ((options+=memberVal) (COMMA options+=memberVal)* COMMA?)? RBRACE);
+callOptions: (LBRACE ((memberVal) (COMMA memberVal)* COMMA?)? RBRACE);
 
 // Statements
 stmt:
@@ -147,9 +146,9 @@ stmt:
     | (ann+=annot)* assignStmt_      # AssignStmt
     | (ann+=annot)* ifStmt_          # IfStmt
     | (ann+=annot)* forStmt_         # ForStmt
-    | (ann+=annot)* EXEC_NOW expr (LBRACE ((options+=memberVal) (COMMA options+=memberVal)* COMMA?)? RBRACE)? # ExecStmt
+    | (ann+=annot)* EXEC_NOW expr options=callOptions # ExecStmt
     | (ann+=annot)* DELEGATE_EXEC HASH expr # DelegateExecStmt
-    | (ann+=annot)* INSTANTIATE_NOW (new=HASH)? expr (LBRACE ((options+=memberVal) (COMMA options+=memberVal)* COMMA?)? RBRACE)? # InstantiateStmt
+    | (ann+=annot)* INSTANTIATE_NOW (new=HASH)? expr options=callOptions # InstantiateStmt
     | (ann+=annot)* EMIT expr        # EmitStmt
     | (ann+=annot)* RETURN expr      # ReturnStmt
     | (ann+=annot)* FAIL expr        # FailStmt
@@ -197,7 +196,7 @@ expr:
     | expr QUEST # NoneCheckExpr
     | expr IS (rhs=typeExpr) # IsExpr
     | expr IN (rhs=expr)                  # InExpr
-    | expr D_QUEST (lhs=expr) # ShortTryExpr
+    | expr D_QUEST (rhs=expr) # ShortTryExpr
     | tryCatchElseExpr_ # TryCatchElseExpr
     | NOT expr # NotExpr
     | expr AND (rhs=expr)                 # AndExpr
@@ -213,12 +212,10 @@ expr:
     | ident # IdentExpr
     | expr TILDE # Grouped2Expr;
 
-closureParams:
-	BAR ((params+=ident) (COMMA params+=ident)*)? BAR # UntypedClosureParams
-	| BAR ((params+=param) (COMMA params+=param)*)? BAR # TypedClosureParams;
+closureParams: BAR ((params+=param) (COMMA (params+=param))*)? BAR;
 
 closure:
-	(params=closureParams) (ARROW retTy=typeExpr)? ((body=block) | (body_stmt=stmt));
+	(params=closureParams) (((ARROW retTy=typeExpr)? block) | stmt);
 
 block: LBRACE (body+=stmt)* RBRACE;
 tryCatchElseExpr_: TRY (body=block) (catches+=catchClause)* (else_=elseClause)?;
