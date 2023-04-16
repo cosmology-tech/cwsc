@@ -4,7 +4,7 @@ interface CW20 {
   // namespaced
   struct Coin {
     address: String,
-    amount: Uint128
+    amount: U128
   }
 
   // you can define events which are structured objects that you can emit
@@ -23,7 +23,7 @@ interface CW20 {
     name: String,
     symbol: String,
     decimals: Uint8,
-    initial_balances: Self.Coin[],
+    initial_balances: CW20.Coin[],
     // you can define structs inline at the same time was you use them
     // this is an optional parameter, which is short for "it may be None"
     // also, when calling this function, if it is not provided at the position
@@ -331,5 +331,4 @@ contract TerraswapToken implements CW20 {
       allowances
     }
   }
-
 }

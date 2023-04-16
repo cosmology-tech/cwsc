@@ -90,7 +90,7 @@ contract TerraswapFactory {
 
     @gas_limit(5000000)
     @reply.on_success(post_instantiate)
-    instantiate! TerraswapPair(asset_infos, $state.config.token_code_id, asset_decimals) {
+    instantiate! #TerraswapPair(asset_infos, $state.config.token_code_id, asset_decimals) {
       code_id: $state.config.pair_code_id,
       admin: $env.contract.address,
       label: "pair"

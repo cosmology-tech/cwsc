@@ -22,6 +22,9 @@ interfaceDefn:
         EXTENDS (base=typePath)
     )? (body=contractBlock);
 
+// Tests
+
+
 contractBlock: LBRACE (body+=contractItem)* RBRACE;
 
 // Import Statement

@@ -7,7 +7,7 @@ import {
   ConstStmtContext,
   ContractBlockContext,
   ContractDefnContext,
-  CWScriptParser,
+  CWScriptParser as ANTLRCWScriptParser,
   DColonExprContext,
   DelegateExecStmtContext,
   DotExprContext,
@@ -29,11 +29,9 @@ import {
   Grouped2ExprContext,
   GroupedExprContext,
   IdentBinding_Context,
-  IdentBindingContext,
   IdentContext,
   IdentLHSContext,
   IfStmt_Context,
-  IfStmtContext,
   ImportAllStmtContext,
   ImportItemsStmtContext,
   IndexExprContext,
@@ -76,7 +74,6 @@ import {
   CallOptionsContext,
   FnParamsContext,
   ParamListContext,
-  TryCatchElseExprContext,
   TryCatchElseExpr_Context,
   CatchContext,
   CatchBindContext,
@@ -101,19 +98,19 @@ import {
   TypeAliasDefnContext,
   TypeVariantContext,
 } from './grammar/CWScriptParser';
-import { CWScriptLexer } from './grammar/CWScriptLexer';
+import { CWScriptLexer as ANTLRCWScriptLexer } from './grammar/CWScriptLexer';
 import { CharStreams, CommonTokenStream, ParserRuleContext } from 'antlr4ts';
 import { AbstractParseTreeVisitor } from 'antlr4ts/tree/AbstractParseTreeVisitor';
-import { CWScriptParserVisitor } from 'grammar/CWScriptParserVisitor';
+import { CWScriptParserVisitor as ANTLRCWScriptParserVisitor } from 'grammar/CWScriptParserVisitor';
 import * as AST from './ast';
 
-export class CWScriptASTVisitor
+export class CWScriptASTBuilderVisitor
   extends AbstractParseTreeVisitor<AST.AST>
-  implements CWScriptParserVisitor<AST.AST>
+  implements ANTLRCWScriptParserVisitor<AST.AST>
 {
   // Stmts
   visitSourceFile(ctx: SourceFileContext): AST.SourceFile {
-    let body = ctx.topLevelStmt().map((x) => this.visit(x));
+    let body = ctx.topLevelStmt().map((x) => this.visit(x) as AST.TopLevelStmt);
     return new AST.SourceFile(body).$(ctx);
   }
 
@@ -128,7 +125,7 @@ export class CWScriptASTVisitor
   }
 
   visitTypePath(ctx: TypePathContext): AST.TypePath {
-    return this.vlist<AST.Ident>(ctx._segments).$(ctx);
+    return new AST.TypePath(this.vlist<AST.Ident>(ctx._segments)).$(ctx);
   }
 
   visitTypeVariant(ctx: TypeVariantContext): AST.TypeVariant {
@@ -156,7 +153,7 @@ export class CWScriptASTVisitor
   }
 
   visitTupleT(ctx: TupleTContext): AST.TupleT {
-    return this.vlist<AST.TypeExpr>(ctx._items).$(ctx);
+    return new AST.TupleT(this.vlist<AST.TypeExpr>(ctx._items)).$(ctx);
   }
 
   visitStructDefn(ctx: StructDefnContext): AST.StructDefn {
@@ -202,7 +199,7 @@ export class CWScriptASTVisitor
   }
 
   visitContractBlock(ctx: ContractBlockContext): AST.ContractBlock {
-    return new AST.ContractBlock(ctx._body.map((x) => this.visit(x))).$(ctx);
+    return this.vlist<AST.ContractItem>(ctx._body).$(ctx);
   }
 
   visitStateDefnBlock(ctx: StateDefnBlockContext): AST.StateDefnBlock {
@@ -399,17 +396,13 @@ export class CWScriptASTVisitor
     }
   }
 
-  visitIfStmt(ctx: IfStmtContext): AST.IfStmt {
-    return this.visitIfStmt_(ctx.ifStmt_());
-  }
-
   visitBlock(ctx: BlockContext): AST.Block {
     return new AST.Block(ctx._body.map((x) => this.visit(x) as AST.Stmt)).$(
       ctx
     );
   }
 
-  visitFor_Stmt(ctx: ForStmt_Context): AST.ForStmt {
+  visitForStmt_(ctx: ForStmt_Context): AST.ForStmt {
     let binding = this.visit(ctx._binding) as AST.LetBinding;
     let iter = this.visit(ctx._iter) as AST.Expr;
     let body = this.visitBlock(ctx._body);
@@ -417,7 +410,7 @@ export class CWScriptASTVisitor
   }
 
   visitForStmt(ctx: ForStmtContext): AST.ForStmt {
-    return this.visitFor_Stmt(ctx.forStmt_());
+    return this.visitForStmt_(ctx.forStmt_());
   }
 
   visitExecStmt(ctx: ExecStmtContext): AST.ExecStmt {
@@ -432,7 +425,7 @@ export class CWScriptASTVisitor
   }
 
   visitInstantiateStmt(ctx: InstantiateStmtContext): AST.InstantiateStmt {
-    let expr = this.visit(ctx.expr()) as AST.TypePath;
+    let expr = this.visit(ctx.expr()) as AST.Expr;
     let new_ = !!ctx._new;
     let options = ctx._options ? this.visitCallOptions(ctx._options) : null;
     return new AST.InstantiateStmt(expr, new_, options).$(ctx);
@@ -467,21 +460,13 @@ export class CWScriptASTVisitor
     return new AST.IdentBinding(name, ty).$(ctx);
   }
 
-  visitIdentBinding(ctx: IdentBindingContext): AST.IdentBinding {
-    return this.visitIdentBinding_(ctx.identBinding_());
-  }
-
   visitStructBinding(ctx: StructBindingContext): AST.StructBinding {
-    let bindings = ctx._bindings.map((binding) =>
-      this.visitIdentBinding_(binding)
-    );
+    let bindings = this.vlist<AST.IdentBinding>(ctx._bindings);
     return new AST.StructBinding(bindings).$(ctx);
   }
 
   visitTupleBinding(ctx: TupleBindingContext): AST.TupleBinding {
-    let bindings = ctx._bindings.map((binding) =>
-      this.visitIdentBinding_(binding)
-    );
+    let bindings = this.vlist<AST.IdentBinding>(ctx._bindings);
     return new AST.TupleBinding(bindings).$(ctx);
   }
 
@@ -609,10 +594,6 @@ export class CWScriptASTVisitor
     return new AST.TryCatchElseExpr(body, AST.List.empty(), else_).$(ctx);
   }
 
-  visitTryCatchElseExpr(ctx: TryCatchElseExprContext): AST.TryCatchElseExpr {
-    return this.visitTryCatchElseExpr_(ctx.tryCatchElseExpr_());
-  }
-
   visitTryCatchElseExpr_(ctx: TryCatchElseExpr_Context): AST.TryCatchElseExpr {
     let body = this.visit(ctx._body) as AST.Block;
     let catch_ = this.vlist<AST.CatchClause>(ctx._catches);
@@ -671,7 +652,7 @@ export class CWScriptASTVisitor
   }
 
   visitTupleExpr(ctx: TupleExprContext): AST.TupleExpr {
-    return this.vlist<AST.Expr>(ctx._items).$(ctx);
+    return new AST.TupleExpr(this.vlist<AST.Expr>(ctx.expr())).$(ctx);
   }
 
   visitClosureParams(ctx: ClosureParamsContext): AST.List<AST.Param> {
@@ -723,46 +704,36 @@ export class CWScriptASTVisitor
   }
 }
 
-export class Parser {
-  public antlrLexer: CWScriptLexer;
-  public antlrParser: CWScriptParser;
-
-  constructor(public sourceInput: string) {
-    this.antlrLexer = new CWScriptLexer(CharStreams.fromString(sourceInput));
-    this.antlrParser = new CWScriptParser(
-      new CommonTokenStream(this.antlrLexer)
+export class CWScriptParser {
+  public static parse(sourceInput: string): AST.SourceFile {
+    let antlrLexer = new ANTLRCWScriptLexer(
+      CharStreams.fromString(sourceInput)
     );
-  }
+    let antlrParser = new ANTLRCWScriptParser(
+      new CommonTokenStream(antlrLexer)
+    );
 
-  public static fromString(sourceInput: string): Parser {
-    return new Parser(sourceInput);
-  }
-
-  public buildAST(): any {
-    let tree = this.antlrParser.sourceFile();
-    let visitor = new CWScriptASTVisitor();
+    let tree = antlrParser.sourceFile();
+    let visitor = new CWScriptASTBuilderVisitor();
     return visitor.visitSourceFile(tree);
   }
 }
 
 import { readFileSync, writeFileSync } from 'fs';
+import { CWScriptInterpreter } from './interpreter';
+import util from 'util';
 
-let parser = Parser.fromString(
+let ast = CWScriptParser.parse(
   readFileSync('./examples/terraswap/TerraswapToken.cws', 'utf8')
 );
-let ast = parser.buildAST();
 
-function prettyPrint(node: any, depth = 0) {
-  let { $type, $children, ...keys } = node;
-  let indent = ' '.repeat(depth);
-  let res = indent + $type;
-  for (let key in keys) {
-    res += ' ' + key + ': ' + keys[key];
-  }
-  console.log(res);
-  for (let child of $children) {
-    prettyPrint(child, depth + 1);
-  }
-}
+let interpreter = new CWScriptInterpreter({
+  files: {
+    './examples/terraswap/TerraswapToken.cws': ast,
+  },
+});
 
-prettyPrint(ast.toJSON());
+let token = interpreter.getSymbol('TerraswapToken');
+let CW20 = interpreter.getSymbol('CW20');
+let CW20Coin = CW20.getSymbol('Coin');
+let MinterResponse = token.getSymbol('MinterResponse');

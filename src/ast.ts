@@ -19,6 +19,78 @@ export class AST {
     return this;
   }
 
+  public get children(): AST[] {
+    let { $parent, $ctx, ...rest } = this;
+    return Object.values(rest)
+      .filter((x) => x instanceof AST)
+      .map((x) => x as AST);
+  }
+
+  public *walkAncestors(includeSelf: boolean = false): IterableIterator<AST> {
+    let parent = this.$parent;
+    while (parent !== null) {
+      yield parent;
+      parent = parent.$parent;
+    }
+  }
+
+  public get ancestors(): AST[] {
+    return Array.from(this.walkAncestors());
+  }
+
+  public nearestAncestorWhere(predicate: (x: AST) => boolean): AST | null {
+    for (const ancestor of this.walkAncestors()) {
+      if (predicate(ancestor)) {
+        return ancestor;
+      }
+    }
+    return null;
+  }
+
+  public nearestAncestorOfType<X extends AST>(
+    astType: new (...args: any) => X
+  ): X | null {
+    return this.nearestAncestorWhere(
+      (x) => x.constructor.name === astType.name
+    ) as X | null;
+  }
+
+  /// Breadth-first traversal of descendant nodes.
+  public *walkDescendantsBFS(): IterableIterator<AST> {
+    yield* this.children;
+    for (const child of this.children) {
+      yield* child.walkDescendantsBFS();
+    }
+  }
+
+  /// Depth-first traversal of descendant nodes.
+  public *walkDescendants(): IterableIterator<AST> {
+    for (const child of this.children) {
+      yield child;
+      yield* child.walkDescendants();
+    }
+  }
+
+  // Leaves-first traversal of descendant nodes.
+  public *walkDescendantsLF(): IterableIterator<AST> {
+    for (const child of this.children) {
+      yield* child.walkDescendantsLF();
+    }
+    yield* this.children;
+  }
+
+  public get descendants(): AST[] {
+    return Array.from(this.walkDescendants());
+  }
+
+  public descendantsOfType<X extends AST>(
+    astType: new (...args: any) => X
+  ): X[] {
+    return this.descendants
+      .filter((x) => x.constructor.name === astType.name)
+      .map((x) => x as X);
+  }
+
   /**
    * Returns true if this node is a "virtual" node, i.e. a node that does not
    * correspond to a node in the AST. This is because we go over the AST in
@@ -48,7 +120,7 @@ export class AST {
       // @ts-ignore
       if (AST.isNode(this[key])) {
         // @ts-ignore
-        res.$children.push(this[key].toJSON());
+        res.$children.push({ key, value: this[key].toJSON() });
         // @ts-ignore
       } else {
         // @ts-ignore
@@ -87,15 +159,43 @@ export class List<T extends AST = AST> extends AST {
     return list;
   }
 
+  public get children(): T[] {
+    return this.$children;
+  }
+
   public toJSON(): any {
     return {
       $type: this.constructor.name,
-      $children: this.$children.map((x) => x.toJSON()),
+      $children: this.$children.map((x, key) => ({ key, value: x.toJSON() })),
     };
   }
 
   protected setParentForChildren(): void {
     this.$children.forEach((x) => x.setParent(this));
+  }
+
+  public map<U>(f: (x: T, i: number, o: T[]) => U): U[] {
+    return this.$children.map(f);
+  }
+
+  public filter(f: (x: T, i: number, o: T[]) => boolean): T[] {
+    return this.$children.filter(f);
+  }
+
+  public find(f: (x: T, i: number, o: T[]) => boolean): T | undefined {
+    return this.$children.find(f);
+  }
+
+  public at(index: number): T | undefined {
+    return this.$children[index];
+  }
+
+  public forEach(f: (x: T, i: number, o: T[]) => void): void {
+    this.$children.forEach(f);
+  }
+
+  public get length(): number {
+    return this.$children.length;
   }
 }
 
@@ -105,14 +205,16 @@ export class Ident extends AST {
   }
 }
 
-export class SourceFile extends List {}
+export type TopLevelStmt = ContractDefn | InterfaceDefn | TypeDefn | ConstStmt;
+
+export class SourceFile extends List<TopLevelStmt> {}
 
 export class ContractDefn extends AST {
   constructor(
     public name: Ident,
     public body: ContractBlock,
     public base: TypePath | null,
-    public interfaces: List<TypePath> = List.empty()
+    public interfaces: List<TypePath>
   ) {
     super();
   }
@@ -128,7 +230,11 @@ export class InterfaceDefn extends AST {
   }
 }
 
-export class TypePath extends List<Ident> {}
+export class TypePath extends AST {
+  constructor(public segments: List<Ident>) {
+    super();
+  }
+}
 
 export class TypeVariant extends AST {
   constructor(
@@ -337,8 +443,17 @@ export class IdentBinding extends AST {
   }
 }
 
-export class TupleBinding extends List<IdentBinding> {}
-export class StructBinding extends List<IdentBinding> {}
+export class TupleBinding extends AST {
+  constructor(public bindings: List<IdentBinding>) {
+    super();
+  }
+}
+
+export class StructBinding extends AST {
+  constructor(public bindings: List<IdentBinding>) {
+    super();
+  }
+}
 
 export type LetBinding = IdentBinding | TupleBinding | StructBinding;
 export class ConstStmt extends AST {
@@ -388,7 +503,11 @@ export class IndexLHS extends AST {
 
 export type AssignLHS = IdentLHS | DotLHS | IndexLHS;
 
-export class TupleExpr extends List<Expr> {}
+export class TupleExpr extends AST {
+  constructor(public exprs: List<Expr>) {
+    super();
+  }
+}
 
 export class StructExpr extends AST {
   constructor(public ty: TypeExpr | null, public members: List<MemberVal>) {
@@ -622,7 +741,11 @@ export class ListT extends AST {
   }
 }
 
-export class TupleT extends List<TypeExpr> {}
+export class TupleT extends AST {
+  constructor(public tys: List<TypeExpr>) {
+    super();
+  }
+}
 
 export class Arg extends AST {
   constructor(public name: Ident | null, public expr: Expr) {
@@ -716,4 +839,12 @@ export class FailStmt extends AST {
 
 export class Block extends List<Stmt> {}
 
-// Statement
+export class CWScriptASTVisitor {
+  visit(node: AST) {
+    // @ts-ignore
+    let visitFn = this[`visit${node.constructor.name}`];
+    if (visitFn) {
+      return visitFn.call(this, node);
+    }
+  }
+}
