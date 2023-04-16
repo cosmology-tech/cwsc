@@ -1,4 +1,6 @@
 import * as AST from './ast';
+import { Defn } from 'rust';
+import Enum = Defn.Enum;
 
 export interface CWScriptInterpreterContext {
   files: {
@@ -28,11 +30,16 @@ export class SymbolTable {
   setSymbol(name: string, value: any) {
     this.symbols[name] = value;
   }
+
+  subscope<T extends SymbolTable>(x: T): T {
+    x.parent = this;
+    return x;
+  }
 }
 
 export class CWScriptInterpreter extends SymbolTable {
   constructor(public ctx: CWScriptInterpreterContext) {
-    super(new SymbolTable(ctx.env));
+    super({}, new SymbolTable(ctx.env));
     let visitor = new CWScriptInterpreterVisitor(this);
     Object.keys(this.ctx.files).forEach((filename) => {
       visitor.visit(this.ctx.files[filename]);
@@ -47,56 +54,68 @@ export class Param extends SymbolTable {
 }
 
 export class Arg extends SymbolTable {
-  constructor(public value: any, public name?: string) {
+  constructor(public value: Value, public name?: string) {
     super();
   }
 }
 
-export abstract class Type extends SymbolTable {
-	constructor(public name: string) {
-		super();
-	}
+export class Type extends SymbolTable {
+  constructor(public name: string) {
+    super();
+  }
 
-	typecheck(value: Value): boolean {
-		return value.ty instanceof this.constructor;
-	}
+  typecheck(value: Value): boolean {
+    return value.ty instanceof this.constructor;
+  }
+
+  value(value: any): Value {
+    return new Value(this, value);
+  }
+
+  static newType(name: string) {
+    return new (class extends Type {
+      constructor() {
+        super(name);
+      }
+    })();
+  }
 }
 
 export class Value extends SymbolTable {
-	constructor(public ty: Type) {
-		super();
-	}
+  constructor(public ty: Type, public value?: any) {
+    super();
+  }
 }
 
 export class OptionalType extends Type {
-	constructor(public inner: Type) {
-		super(`${inner.name}?`);
-	}
+  constructor(public inner: Type) {
+    super(`${inner.name}?`);
+  }
 
-	typecheck(value: Value): boolean {
-		return value.ty instanceof NoneType || this.inner.typecheck(value);
-	}
+  typecheck(value: Value): boolean {
+    return value.ty instanceof NoneType || this.inner.typecheck(value);
+  }
 }
 
 export class ListType extends Type {
-	constructor(public inner: Type, public size?: number) {
-		super(`${inner.name}${size ? `[${size}]` : '[]'}`);
-	}
+  constructor(public inner: Type, public size?: number) {
+    super(`${inner.name}${size ? `[${size}]` : '[]'}`);
+  }
 
-	typecheck(value: Value): boolean {
-		if (value.ty instanceof ListType) {
-			// check inner types match
-			return this.inner ==value.ty.inner && this.size === value.ty.size;
-		} else {
-			return false;
-		}
-	}
+  typecheck(value: Value): boolean {
+    if (value.ty instanceof ListType) {
+      // check inner types match
+      return this.inner == value.ty.inner && this.size === value.ty.size;
+    } else {
+      return false;
+    }
+  }
 }
 
 export class NoneType extends Type {
-	constructor() {
-		super('None');
-	}
+  constructor() {
+    super('None');
+  }
 }
 
 export class StructDefn extends Type {
@@ -111,10 +130,17 @@ export class StructDefn extends Type {
     let nextPosArg = args.findIndex(
       (x, i) => x.name === undefined && i > firstNamedArgIx
     );
-    if (nextPosArg !== -1) {
+    if (firstNamedArgIx !== -1 && nextPosArg !== -1) {
       throw new Error(
         `${this.name}: positional arguments must come before named arguments`
       );
+    }
+
+    // see if there are enough arguments
+    if (
+      args.length < this.members.filter((x) => x.default_ !== undefined).length
+    ) {
+      throw new Error(`${this.name}: too few arguments`);
     }
 
     let params: { [k: string]: any } = {};
@@ -143,12 +169,26 @@ export class StructDefn extends Type {
         instance.setSymbol(m.name, m.default_);
       } else {
         if (!m.ty.typecheck(arg)) {
-          throw new Error(`${this.name}: invalid type for member ${m.name}`);
+          throw new Error(
+            `${this.name}: invalid type for member ${m.name} - expected ${m.ty.name}, got ${arg.ty.name}`
+          );
         }
         instance.setSymbol(m.name, arg);
       }
     }
     return instance;
+  }
+}
+
+export class EnumDefn extends Type {
+  constructor(public name: string) {
+    super(name);
+  }
+
+  typecheck(value: Value): boolean {
+    // TODO: need to change this to be more strict,
+    //  which involves making StructVariant and UnitVariant types
+    return value.ty.name.startsWith(this.name + '.#');
   }
 }
 
@@ -176,15 +216,15 @@ export class ContractDefn extends SymbolTable {
 }
 
 export class StateMap extends SymbolTable {
-	constructor(public prefix: string, public mapKeys: Type[], public ty: Type) {
-		super();
-	}
+  constructor(public prefix: string, public mapKeys: Type[], public ty: Type) {
+    super();
+  }
 }
 
 export class StateItem extends SymbolTable {
-	constructor(public key: string, public ty: Type) {
-		super();
-	}
+  constructor(public key: string, public ty: Type) {
+    super();
+  }
 }
 
 export class InterfaceDefn extends SymbolTable {
@@ -195,9 +235,11 @@ export class InterfaceDefn extends SymbolTable {
 
 export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
   public ctx: any;
+  scope: SymbolTable;
 
   constructor(public interpreter: CWScriptInterpreter) {
     super();
+    this.scope = interpreter;
   }
 
   visitSourceFile(node: AST.SourceFile) {
@@ -212,115 +254,172 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
     };
   }
 
-  visitStructDefn(node: AST.ErrorDefn | AST.EventDefn | AST.StructDefn): StructDefn {
+  visitStructDefn(
+    node: AST.ErrorDefn | AST.EventDefn | AST.StructDefn
+  ): StructDefn {
     let name = node.name?.value ?? '%anonymous';
     let members: any = [];
 
     node.members.forEach((m, i) => {
-			if (m.name === undefined) {
-				throw new Error(`${name}: missing name for member ${i}`);
-			}
-			if (m.ty === undefined) {
-				throw new Error(`${name}: missing type for member ${m.name!.value}`);
-			}
-			let ty = this.visit(m.ty!);
-			let default_ = m.default_ ? this.visit(m.default_) : undefined;
-			if (m.optional) {
-				ty = new OptionalType(ty);
-				default_ = m.default_ ?? new NoneType();
-			}
+      if (!m.name) {
+        throw new Error(`${name}: missing name for member ${i}`);
+      }
+      if (!m.ty) {
+        throw new Error(`${name}: missing type for member ${m.name!.value}`);
+      }
+      let ty = this.visit(m.ty!);
+      let default_ = m.default_ ? this.visit(m.default_) : undefined;
+      if (m.optional) {
+        ty = new OptionalType(ty);
+        default_ = m.default_ ?? new NoneType();
+      }
 
       members.push({
         name: m.name.value,
         ty,
-				default_,
+        default_,
       });
     });
 
-		return new StructDefn(name, members);
+    return new StructDefn(name, members);
+  }
+
+  visitEnumDefn(node: AST.EnumDefn): EnumDefn {
+    let name = node.name.value;
+    let enumDefn = new EnumDefn(name);
+    node.variants.forEach((v, i) => {
+      if (v instanceof AST.EnumVariantStruct) {
+        let structDefn = this.visitStructDefn(v);
+        structDefn.name = name + '.#' + v.name.value;
+        enumDefn.setSymbol('#' + v.name.value, this.visitStructDefn(v));
+      }
+
+      if (v instanceof AST.EnumVariantUnit) {
+        enumDefn.setSymbol(
+          '#' + v.name.value,
+          new Type(name + '.#' + v.name.value)
+        );
+      }
+    });
+    return enumDefn;
   }
 
   visitErrorDefn = (node: AST.ErrorDefn) => this.visitStructDefn(node);
   visitEventDefn = (node: AST.EventDefn) => this.visitStructDefn(node);
 
   visitInterfaceDefn(node: AST.InterfaceDefn) {
+    let prevScope = this.scope;
     let name = node.name.value;
-    let res = new InterfaceDefn(name);
+    let interfaceDefn = this.scope.subscope(new InterfaceDefn(name));
+    this.scope = interfaceDefn;
 
-    node.descendantsOfType(AST.ErrorDefn).forEach((x) => {
-      let { name, members } = this.visitErrorDefn(x);
-      res.setSymbol('error#' + name, members);
-    });
-    node.descendantsOfType(AST.EventDefn).forEach((x) => {
-      let { name, members } = this.visitEventDefn(x);
-      res.setSymbol('event#' + name, members);
-    });
-    node.descendantsOfType(AST.InstantiateDecl).forEach((x) => {
-      let params = x.params.map((p) => this.visitParam(p));
-      res.setSymbol('#instantiate', params);
-    });
-    node.descendantsOfType(AST.ExecDecl).forEach((x) => {
-      let params = x.params.map((p) => this.visitParam(p));
-      res.setSymbol('exec#' + x.name.value, params);
-    });
-    node.descendantsOfType(AST.QueryDecl).forEach((x) => {
-      let params = x.params.map((p) => this.visitParam(p));
-      res.setSymbol('query#' + x.name.value, params);
+    node.body.children.forEach((x) => {
+      if (x instanceof AST.StructDefn) {
+        interfaceDefn.setSymbol(x.name!.value, this.visitStructDefn(x));
+      }
+
+      if (x instanceof AST.EnumDefn) {
+        interfaceDefn.setSymbol(x.name.value, this.visitEnumDefn(x));
+      }
+
+      if (x instanceof AST.ErrorDefn) {
+        interfaceDefn.setSymbol(
+          'error#' + x.name!.value,
+          this.visitErrorDefn(x)
+        );
+      }
+
+      if (x instanceof AST.EventDefn) {
+        interfaceDefn.setSymbol(
+          'event#' + x.name!.value,
+          this.visitEventDefn(x)
+        );
+      }
     });
 
-    this.interpreter.setSymbol(name, res);
+    this.interpreter.setSymbol(name, interfaceDefn);
+    this.scope = prevScope;
+  }
+
+  visitTypePath(node: AST.TypePath): Type {
+    let segments = node.segments.map((x) => x.value);
+    // start at the first segment, and keep going until we resolve the final segment
+    let curr = this.scope.getSymbol(segments[0]);
+    for (let i = 1; i < segments.length; i++) {
+      let next = curr.getSymbol(segments[i]);
+      if (next === undefined) {
+        throw new Error(`type ${segments[i]} not found`);
+      }
+      if (!(next instanceof Type)) {
+        throw new Error(`${segments[i]} is not a type`);
+      }
+      curr = next;
+    }
+    return curr;
   }
 
   visitContractDefn(node: AST.ContractDefn) {
+    let prevScope = this.scope;
     let name = node.name.value;
-    let contractDefn = new ContractDefn(name);
+    let contractDefn = this.scope.subscope(new ContractDefn(name));
+    this.scope = contractDefn;
 
-    let state: any = {};
-    let errors: any = {};
-    let events: any = {};
-    let instantiate: any;
-    let exec: any = [];
-    let query: any = [];
+    node.body.children.forEach((x) => {
+      if (x instanceof AST.StructDefn) {
+        contractDefn.setSymbol(x.name!.value, this.visitStructDefn(x));
+      }
 
-    node.descendantsOfType(AST.StateDefnBlock).forEach((s) => {
-      s.descendantsOfType(AST.StateDefnItem).forEach((itemDefn) => {
+      if (x instanceof AST.EnumDefn) {
+        contractDefn.setSymbol(x.name.value, this.visitEnumDefn(x));
+      }
+
+      if (x instanceof AST.StateDefnBlock) {
+        x.descendantsOfType(AST.StateDefnItem).forEach((itemDefn) => {
+          contractDefn.setSymbol(
+            'state#' + itemDefn.name.value,
+            new StateItem(itemDefn.name.value, this.visit(itemDefn.ty))
+          );
+        });
+        x.descendantsOfType(AST.StateDefnMap).forEach((mapDefn) => {
+          contractDefn.setSymbol(
+            'state#' + mapDefn.name.value,
+            new StateMap(
+              mapDefn.name.value,
+              mapDefn.mapKeys.map((k) => this.visit(k)),
+              this.visit(mapDefn.ty)
+            )
+          );
+        });
+      }
+
+      if (x instanceof AST.ErrorDefn) {
         contractDefn.setSymbol(
-          'state#' + itemDefn.name.value,
-					new StateItem(itemDefn.name.value, this.visit(itemDefn.ty)
+          'error#' + x.name!.value,
+          this.visitErrorDefn(x)
         );
-      });
-      s.descendantsOfType(AST.StateDefnMap).forEach((mapDefn) => {
+      }
+
+      if (x instanceof AST.EventDefn) {
         contractDefn.setSymbol(
-          'state#' + mapDefn.name.value,
-          new StateMap(
-            mapDefn.name.value,
-            mapDefn.mapKeys.map((k) => this.visit(k)),
-            this.visit(mapDefn.ty)
-          )
+          'event#' + x.name!.value,
+          this.visitEventDefn(x)
         );
-      });
-    });
-    node.descendantsOfType(AST.ErrorDefn).forEach((x) => {
-      let { name, members } = this.visitErrorDefn(x);
-      errors[name] = members;
-    });
-    node.descendantsOfType(AST.EventDefn).forEach((x) => {
-      let { name, members } = this.visitEventDefn(x);
-      events[name] = members;
+      }
+
+      if (x instanceof AST.InstantiateDefn) {
+        contractDefn.setSymbol('#instantiate', this.visitInstantiateDefn(x));
+      }
+
+      if (x instanceof AST.ExecDefn) {
+        contractDefn.setSymbol('exec#' + x.name.value, this.visitExecDefn(x));
+      }
+
+      if (x instanceof AST.QueryDefn) {
+        contractDefn.setSymbol('query#' + x.name.value, this.visitQueryDefn(x));
+      }
     });
 
-    node.descendantsOfType(AST.InstantiateDefn).forEach((x) => {
-      instantiate = this.visitInstantiateDefn(x);
-    });
-
-    node.descendantsOfType(AST.ExecDefn).forEach((x) => {
-      exec.push(this.visitExecDefn(x));
-    });
-
-    node.descendantsOfType(AST.QueryDefn).forEach((x) => {
-      query.push(this.visitQueryDefn(x));
-    });
-
+    this.scope = prevScope;
     this.interpreter.setSymbol(name, contractDefn);
   }
 
@@ -349,3 +448,21 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
     return node.map((x) => this.visit(x));
   }
 }
+
+export const Address = Type.newType('Address');
+export const Int = Type.newType('Int');
+export const String = Type.newType('String');
+export const U8 = Type.newType('U8');
+export const U64 = Type.newType('U64');
+export const U128 = Type.newType('U128');
+export const Binary = Type.newType('Binary');
+
+export const STDLIB = {
+  Address,
+  Int,
+  String,
+  U8,
+  U64,
+  U128,
+  Binary,
+};

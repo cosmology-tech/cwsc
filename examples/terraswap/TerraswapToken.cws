@@ -22,7 +22,7 @@ interface CW20 {
   #instantiate(
     name: String,
     symbol: String,
-    decimals: Uint8,
+    decimals: U8,
     initial_balances: CW20.Coin[],
     // you can define structs inline at the same time was you use them
     // this is an optional parameter, which is short for "it may be None"
@@ -30,7 +30,7 @@ interface CW20 {
     // it is expected a value, it will default to None
     mint?: struct MinterResponse {
       minter: String,
-      cap?: Uint128 // optional member defaults to None if not provided
+      cap?: U128 // optional member defaults to None if not provided
     }
   )
 
@@ -55,7 +55,7 @@ interface CW20 {
   query #token_info() -> struct TokenInfo {
     name: String,
     symbol: String,
-    decimals: Uint8,
+    decimals: U8,
     total_supply: Int,
   }
 
@@ -64,6 +64,32 @@ interface CW20 {
 }
 
 contract TerraswapToken implements CW20 {
+
+  struct Timestamp(value: U64)
+
+  enum Expiration {
+    #Never
+  	#AtTime(at: U64)
+  	#AtHeight(at: Timestamp)
+  }
+
+  struct MinterData {
+  	minter: Address,
+	cap?: U128
+  }
+
+  struct TokenInfo {
+     name: String,
+     symbol: String,
+     decimals: U8,
+     total_supply: U128,
+     mint?: MinterData
+  }
+
+  struct AllowanceResponse {
+    allowance: U128,
+	expires: Expiration
+  }
 
   state {
     token_info: TokenInfo = 0
@@ -97,7 +123,7 @@ contract TerraswapToken implements CW20 {
   fn create_accounts!(accounts: CW20.Coin[]) -> Int {
     let total_supply = 0
     for row in accounts {
-      let addr = Address.validate!(row.address)
+      let addr = Address!(row.address)
       $state.balances[addr] = row.amount
       total_supply += row.amount
     }
@@ -113,7 +139,7 @@ contract TerraswapToken implements CW20 {
     symbol: String,
     decimals: U8,
     initial_balances: CW20.Coin[], // we use the fully qualified type here
-    mint?: MinterResponse // MinterResponse is loaded in because we are implementing the type
+    mint?: MinterData // MinterResponse is loaded in because we are implementing the type
   ) {
     validate_accounts!(accounts) // usage of validate_accounts! function
     let total_supply = create_accounts!($, initial_balances) // need to use mut $
@@ -132,7 +158,7 @@ contract TerraswapToken implements CW20 {
     // and the parameter order is the order in which it appears in the struct definition
     // optional members and default values must therefore appear after all positional
     // arguments.
-    let mint = MinterData(Address.validate!(mint.minter), mint.cap)
+    let mint = MinterData(Address!(mint.minter), mint.cap)
     $state.token_info = TokenInfo(name, symbol, decimals, total_supply, mint)
   }
 
@@ -143,7 +169,7 @@ contract TerraswapToken implements CW20 {
       fail! InvalidZeroAmount()
     }
 
-    let rcpt_addr = Address.validate!(recipient)
+    let rcpt_addr = Address!(recipient)
     // we don't use checked_sub!() - we can directly write to state because -= is builtin
     $state.balances[msginfo.sender] -= amount
     $state.balances[rcpt_addr] += amount
@@ -187,7 +213,7 @@ contract TerraswapToken implements CW20 {
     }
 
     $state.token_info = $state.config
-    let rcpt_addr = Address.validate!(recipient)
+    let rcpt_addr = Address!(recipient)
     $state.balances[rcpt_addr] += amount
 
     emit Mint(recipient, amount)
@@ -199,7 +225,7 @@ contract TerraswapToken implements CW20 {
       fail! InvalidZeroAmount()
     }
 
-    let rcpt_addr = Address.validate!(contract)
+    let rcpt_addr = Address!(contract)
 
     // the default is defined in the state, not here b should not be optional
     $state.balances[msginfo.sender] -= amount
@@ -214,7 +240,7 @@ contract TerraswapToken implements CW20 {
     amount: Int,
     expires?: Expiration
   ) {
-    let spender_addr = Address.validate!(spender)
+    let spender_addr = Address!(spender)
     if spender_addr == $info.sender {
       fail! CannotSetOwnAccount()
     }
@@ -230,7 +256,7 @@ contract TerraswapToken implements CW20 {
   }
 
   exec #decrease_allowance(spender: String, amount: Int, expires?: Expiration) {
-    let spender_addr = Address.validate!(spender)
+    let spender_addr = Address!(spender)
     if spender_addr == $info.sender {
       fail! CannotSetOwnAccount()
     }
@@ -259,8 +285,8 @@ contract TerraswapToken implements CW20 {
   }
 
   exec #transfer_from(owner: String, recipient: String, amount: Int) {
-    let rcpt_addr = Address.validate!(recipient)
-    let owner_addr = Address.validate!(owner)
+    let rcpt_addr = Address!(recipient)
+    let owner_addr = Address!(owner)
 
     deduct_allowance!(owner_addr, $info.sender, $env.block, amount)
     $state.balances[owner_addr] -= amount
@@ -270,7 +296,7 @@ contract TerraswapToken implements CW20 {
   }
 
   exec #burn_from(owner: String, amount: Int) {
-    let owner_addr = Address.validate!(owner)
+    let owner_addr = Address!(owner)
     deduct_allowance!(owner_addr, $info.sender, $env.block, amount)
 
     $state.balances[owner_addr]::update!(|s| s.checked_sub!(amount))
@@ -280,8 +306,8 @@ contract TerraswapToken implements CW20 {
   }
 
   exec #send_from(owner: String, contract: String, amount: Int, msg: Binary) {
-    let rcpt_addr = Address.validate!(contract)
-    let owner_addr = Address.validate!(owner)
+    let rcpt_addr = Address!(contract)
+    let owner_addr = Address!(owner)
 
     deduct_allowance!(owner_addr, $info.sender, $env.block, amount)
     $state.balances[owner_addr] -= amount
@@ -294,7 +320,7 @@ contract TerraswapToken implements CW20 {
   }
 
   query #balance(address: String) {
-    let address = Address.validate!(address)
+    let address = Address!(address)
     let balance = state.balances[address]
 
     // we don't need to name the return type, it will get matched by the
@@ -313,8 +339,8 @@ contract TerraswapToken implements CW20 {
   }
 
   query #allowance(owner: String, spender: String) {
-    let owner_addr = Address.validate!(owner)
-    let spender_addr = Address.validate!(spender)
+    let owner_addr = Address!(owner)
+    let spender_addr = Address!(spender)
     return $state.allowances[owner_addr, spender_addr]
   }
 

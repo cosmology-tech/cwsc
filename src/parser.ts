@@ -720,7 +720,14 @@ export class CWScriptParser {
 }
 
 import { readFileSync, writeFileSync } from 'fs';
-import { CWScriptInterpreter } from './interpreter';
+import {
+  Arg,
+  CWScriptInterpreter,
+  STDLIB,
+  Address,
+  String,
+  U128,
+} from './interpreter';
 import util from 'util';
 
 let ast = CWScriptParser.parse(
@@ -731,9 +738,19 @@ let interpreter = new CWScriptInterpreter({
   files: {
     './examples/terraswap/TerraswapToken.cws': ast,
   },
+  env: STDLIB,
 });
 
 let token = interpreter.getSymbol('TerraswapToken');
 let CW20 = interpreter.getSymbol('CW20');
+console.log(CW20.symbols);
 let CW20Coin = CW20.getSymbol('Coin');
-let MinterResponse = token.getSymbol('MinterResponse');
+console.log(
+  CW20Coin.call([
+    new Arg(U128.value('1000000000000000000000000'), 'amount'),
+    new Arg(
+      String.value('terra1hzh9vpxhsk82503lzgdejhp09lk93g9ev39r3h'),
+      'address'
+    ),
+  ])
+);

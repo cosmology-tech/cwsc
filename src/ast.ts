@@ -841,6 +841,7 @@ export class Block extends List<Stmt> {}
 
 export class CWScriptASTVisitor {
   visit(node: AST) {
+    console.log(node.constructor.name);
     // @ts-ignore
     let visitFn = this[`visit${node.constructor.name}`];
     if (visitFn) {
