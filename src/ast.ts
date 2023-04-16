@@ -185,7 +185,7 @@ export type TypeDefn = StructDefn | EnumDefn | TypeAliasDefn;
 export class Param extends AST {
   constructor(
     public name: Ident,
-    public ty: TypeExpr,
+    public ty: TypeExpr | null,
     public optional: boolean = false,
     public default_: Expr | null = null
   ) {
@@ -397,7 +397,10 @@ export type AssignLHS = IdentLHS | DotLHS | IndexLHS;
 export class TupleExpr extends List<Expr> {}
 
 export class StructExpr extends AST {
-  constructor(public members: MemberVal[], public ty: TypeExpr | null = null) {
+  constructor(
+    public ty: TypeExpr | null,
+    public members: List<MemberVal> = List.empty()
+  ) {
     super();
   }
 }
@@ -555,7 +558,7 @@ export class FailExpr extends AST {
 }
 
 export class UnitVariantExpr extends AST {
-  constructor(public path: TypePath) {
+  constructor(public path: TypeVariant) {
     super();
   }
 }
@@ -681,7 +684,11 @@ export class DecLit extends Literal {}
 
 export class BoolLit extends Literal {}
 
-export class NoneLit extends Literal {}
+export class NoneLit extends Literal {
+  constructor() {
+    super('none');
+  }
+}
 
 export type Stmt =
   | LetStmt
@@ -698,10 +705,7 @@ export type Stmt =
   | Expr;
 
 export class ExecStmt extends AST {
-  constructor(
-    public expr: Expr,
-    public options: List<MemberVal> = List.empty()
-  ) {
+  constructor(public expr: Expr, public options: List<MemberVal> | null) {
     super();
   }
 }
@@ -716,7 +720,7 @@ export class InstantiateStmt extends AST {
   constructor(
     public expr: Expr,
     public new_: boolean = false,
-    public options: List<MemberVal> = List.empty()
+    public options: List<MemberVal> | null
   ) {
     super();
   }

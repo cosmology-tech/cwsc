@@ -146,9 +146,9 @@ stmt:
     | (ann+=annot)* assignStmt_      # AssignStmt
     | (ann+=annot)* ifStmt_          # IfStmt
     | (ann+=annot)* forStmt_         # ForStmt
-    | (ann+=annot)* EXEC_NOW expr options=callOptions # ExecStmt
+    | (ann+=annot)* EXEC_NOW expr (options=callOptions)? # ExecStmt
     | (ann+=annot)* DELEGATE_EXEC HASH expr # DelegateExecStmt
-    | (ann+=annot)* INSTANTIATE_NOW (new=HASH)? expr options=callOptions # InstantiateStmt
+    | (ann+=annot)* INSTANTIATE_NOW (new=HASH)? expr (options=callOptions)? # InstantiateStmt
     | (ann+=annot)* EMIT expr        # EmitStmt
     | (ann+=annot)* RETURN expr      # ReturnStmt
     | (ann+=annot)* FAIL expr        # FailStmt

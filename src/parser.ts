@@ -76,6 +76,24 @@ import {
   CallOptionsContext,
   FnParamsContext,
   ParamListContext,
+  TryCatchElseExprContext,
+  TryCatchElseExpr_Context,
+  CatchContext,
+  CatchBindContext,
+  AndExprContext,
+  OrExprContext,
+  QueryNowExprContext,
+  FailExprContext,
+  ClosureExprContext,
+  ClosureContext,
+  ClosureParamsContext,
+  TupleExprContext,
+  StructExprContext,
+  UnitVariantExprContext,
+  IntLitContext,
+  DecLitContext,
+  BoolLitContext,
+  NoneLitContext,
 } from './grammar/CWScriptParser';
 import { CWScriptLexer } from './grammar/CWScriptLexer';
 import { CharStreams, CommonTokenStream, ParserRuleContext } from 'antlr4ts';
@@ -129,15 +147,10 @@ export class CWScriptASTVisitor
 
   visitParam(ctx: ParamContext): AST.Param {
     let name = this.visitIdent(ctx._name);
-    let ty = this.visit(ctx._ty);
+    let ty = ctx._ty ? (this.visit(ctx._ty) as AST.TypeExpr) : null;
     let optional = !!ctx._optional;
     let default_ = ctx._default ? this.visit(ctx._default) : null;
-    return new AST.Param(
-      name,
-      ty as AST.TypeExpr,
-      optional,
-      default_ as AST.Expr
-    ).$(ctx);
+    return new AST.Param(name, ty, optional, default_ as AST.Expr).$(ctx);
   }
 
   visitStringLit(ctx: StringLitContext): AST.StringLit {
@@ -362,7 +375,7 @@ export class CWScriptASTVisitor
 
   visitExecStmt(ctx: ExecStmtContext): AST.ExecStmt {
     let expr = this.visit(ctx.expr()) as AST.Expr;
-    let options = this.visitCallOptions(ctx._options);
+    let options = ctx._options ? this.visitCallOptions(ctx._options) : null;
     return new AST.ExecStmt(expr, options).$(ctx);
   }
 
@@ -374,7 +387,7 @@ export class CWScriptASTVisitor
   visitInstantiateStmt(ctx: InstantiateStmtContext): AST.InstantiateStmt {
     let expr = this.visit(ctx.expr()) as AST.TypePath;
     let new_ = !!ctx._new;
-    let options = this.visitCallOptions(ctx._options);
+    let options = ctx._options ? this.visitCallOptions(ctx._options) : null;
     return new AST.InstantiateStmt(expr, new_, options).$(ctx);
   }
 
@@ -547,6 +560,104 @@ export class CWScriptASTVisitor
     let body = new AST.Block([lhs]).$(ctx.expr()[0]);
     let else_ = new AST.Block([rhs]).$(ctx._rhs);
     return new AST.TryCatchElseExpr(body, AST.List.empty(), else_).$(ctx);
+  }
+
+  visitTryCatchElseExpr(ctx: TryCatchElseExprContext): AST.TryCatchElseExpr {
+    return this.visitTryCatchElseExpr_(ctx.tryCatchElseExpr_());
+  }
+
+  visitTryCatchElseExpr_(ctx: TryCatchElseExpr_Context): AST.TryCatchElseExpr {
+    let body = this.visit(ctx._body) as AST.Block;
+    let catch_ = this.vlist<AST.CatchClause>(ctx._catches);
+    let else_ = ctx._else_ ? this.visitElseClause(ctx._else_) : null;
+    return new AST.TryCatchElseExpr(body, catch_, else_).$(ctx);
+  }
+
+  visitCatch(ctx: CatchContext): AST.CatchClause {
+    let ty = this.visit(ctx._ty) as AST.TypeExpr;
+    let body = this.visitBlock(ctx._body);
+    return new AST.CatchClause(null, ty, body).$(ctx);
+  }
+
+  visitCatchBind(ctx: CatchBindContext): AST.CatchClause {
+    let name = this.visitIdent(ctx._name);
+    let ty = this.visit(ctx._ty) as AST.TypeExpr;
+    let body = this.visitBlock(ctx._body);
+    return new AST.CatchClause(name, ty, body).$(ctx);
+  }
+
+  visitAndExpr(ctx: AndExprContext): AST.BinOp {
+    const lhs = this.visit(ctx.expr()[0]) as AST.Expr;
+    const rhs = this.visit(ctx._rhs) as AST.Expr;
+    return new AST.BinOp(lhs, AST.Op.AND, rhs).$(ctx);
+  }
+
+  visitOrExpr(ctx: OrExprContext): AST.BinOp {
+    const lhs = this.visit(ctx.expr()[0]) as AST.Expr;
+    const rhs = this.visit(ctx._rhs) as AST.Expr;
+    return new AST.BinOp(lhs, AST.Op.OR, rhs).$(ctx);
+  }
+
+  visitQueryNowExpr(ctx: QueryNowExprContext): AST.QueryNowExpr {
+    const obj = this.visit(ctx.expr()) as AST.Expr;
+    return new AST.QueryNowExpr(obj).$(ctx);
+  }
+
+  visitFailExpr(ctx: FailExprContext): AST.FailExpr {
+    let expr_ = ctx.expr();
+    const obj = expr_ ? (this.visit(expr_) as AST.Expr) : null;
+    return new AST.FailExpr(obj).$(ctx);
+  }
+
+  visitClosure(ctx: ClosureContext): AST.Closure {
+    let params = this.visitClosureParams(ctx._params);
+    let retTy = ctx._retTy ? (this.visit(ctx._retTy) as AST.TypeExpr) : null;
+    let body: AST.Block;
+    if (ctx.stmt()) {
+      body = new AST.Block([this.visit(ctx.stmt()!) as AST.Stmt]).$(
+        ctx.stmt()!
+      );
+    } else {
+      body = this.visitBlock(ctx.block()!);
+    }
+    return new AST.Closure(params, retTy, body).$(ctx);
+  }
+
+  visitTupleExpr(ctx: TupleExprContext): AST.TupleExpr {
+    return this.vlist<AST.Expr>(ctx._items).$(ctx);
+  }
+
+  visitClosureParams(ctx: ClosureParamsContext): AST.List<AST.Param> {
+    return this.vlist<AST.Param>(ctx._params).$(ctx);
+  }
+
+  visitStructExpr(ctx: StructExprContext): AST.StructExpr {
+    let ty = ctx.typeExpr()
+      ? (this.visit(ctx.typeExpr()!) as AST.TypeExpr)
+      : null;
+    let memberVals = this.vlist<AST.MemberVal>(ctx._members);
+    return new AST.StructExpr(ty, memberVals).$(ctx);
+  }
+
+  visitUnitVariantExpr(ctx: UnitVariantExprContext): AST.UnitVariantExpr {
+    let ty = this.visit(ctx.typeVariant()) as AST.TypeVariant;
+    return new AST.UnitVariantExpr(ty).$(ctx);
+  }
+
+  visitIntLit(ctx: IntLitContext): AST.IntLit {
+    return new AST.IntLit(ctx.text).$(ctx);
+  }
+
+  visitDecLit(ctx: DecLitContext): AST.DecLit {
+    return new AST.DecLit(ctx.text).$(ctx);
+  }
+
+  visitBoolLit(ctx: BoolLitContext): AST.BoolLit {
+    return new AST.BoolLit(ctx.text).$(ctx);
+  }
+
+  visitNoneLit(ctx: NoneLitContext): AST.NoneLit {
+    return new AST.NoneLit().$(ctx);
   }
 
   visitIdent(ctx: IdentContext): AST.Ident {
