@@ -96,8 +96,8 @@ execDefn:
 execDecl: EXEC (tup=MUL)? HASH name=ident params=fnParams;
 
 // Query Defn
-queryDefn: QUERY (tup=MUL)? HASH name=ident params=fnParams (ARROW retTy=typeExpr)? body=block;
-queryDecl: QUERY (tup=MUL)? HASH name=ident params=fnParams (ARROW retTy=typeExpr)?;
+queryDefn: QUERY HASH name=ident params=fnParams (ARROW retTy=typeExpr)? body=block;
+queryDecl: QUERY HASH name=ident params=fnParams (ARROW retTy=typeExpr)?;
 
 // Reply Defn
 replyDefn: REPLY (DOT on=ident)? name=ident params=fnParams body=block;
@@ -114,15 +114,13 @@ variant_unit: HASH (name = ident);
 typeExpr:
     typePath # PathT
     | typeVariant # VariantT
-    | INSTANTIATE HASH typePath # InstantiateT
-    | EXEC typeVariant # ExecT
-    | QUERY typeVariant # QueryT
-    | MUT typeExpr                                                      # MutT
+	| typeLens # LensT
     | typeExpr QUEST                                                    # OptionT
-    | typeExpr LBRACK (len=IntLiteral?) RBRACK                          # ListT
+    | typeExpr LBRACK (len=IntLiteral)? RBRACK                          # ListT
     | LBRACK (items+=typeExpr (COMMA items+=typeExpr)*)? RBRACK 		# TupleT
     | typeDefn                                                          # DefnT;
 
+typeLens: scope=(INSTANTIATE | EXEC | QUERY | MUT) typePath;
 typePath: (segments+=ident) (DOT segments+=ident)*;
 typeVariant: typePath (LPAREN expr RPAREN)? (DOT HASH variant=ident);
 typeDefn: structDefn | enumDefn | typeAliasDefn;

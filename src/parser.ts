@@ -84,7 +84,6 @@ import {
   OrExprContext,
   QueryNowExprContext,
   FailExprContext,
-  ClosureExprContext,
   ClosureContext,
   ClosureParamsContext,
   TupleExprContext,
@@ -94,6 +93,13 @@ import {
   DecLitContext,
   BoolLitContext,
   NoneLitContext,
+  OptionTContext,
+  TypeLensContext,
+  ListTContext,
+  TupleTContext,
+  StructDefnContext,
+  TypeAliasDefnContext,
+  TypeVariantContext,
 } from './grammar/CWScriptParser';
 import { CWScriptLexer } from './grammar/CWScriptLexer';
 import { CharStreams, CommonTokenStream, ParserRuleContext } from 'antlr4ts';
@@ -122,9 +128,47 @@ export class CWScriptASTVisitor
   }
 
   visitTypePath(ctx: TypePathContext): AST.TypePath {
-    return new AST.TypePath(ctx._segments.map((x) => this.visitIdent(x))).$(
-      ctx
-    );
+    return this.vlist<AST.Ident>(ctx._segments).$(ctx);
+  }
+
+  visitTypeVariant(ctx: TypeVariantContext): AST.TypeVariant {
+    let path = this.visitTypePath(ctx.typePath());
+    let expr = ctx.expr() ? (this.visit(ctx.expr()!) as AST.Expr) : null;
+    let variant = this.visitIdent(ctx._variant);
+    return new AST.TypeVariant(path, expr, variant).$(ctx);
+  }
+
+  visitTypeLens(ctx: TypeLensContext): AST.TypeLens {
+    let scope = ctx._scope.text! as AST.Scope;
+    let ty = this.visitTypePath(ctx.typePath());
+    return new AST.TypeLens(scope, ty).$(ctx);
+  }
+
+  visitOptionT(ctx: OptionTContext): AST.OptionT {
+    let ty = this.visit(ctx.typeExpr()) as AST.TypeExpr;
+    return new AST.OptionT(ty).$(ctx);
+  }
+
+  visitListT(ctx: ListTContext): AST.ListT {
+    let ty = this.visit(ctx.typeExpr()) as AST.TypeExpr;
+    let len = ctx._len ? Number.parseInt(ctx._len.text!) : null;
+    return new AST.ListT(ty, len).$(ctx);
+  }
+
+  visitTupleT(ctx: TupleTContext): AST.TupleT {
+    return this.vlist<AST.TypeExpr>(ctx._items).$(ctx);
+  }
+
+  visitStructDefn(ctx: StructDefnContext): AST.StructDefn {
+    let name = ctx._name ? this.visitIdent(ctx._name) : null;
+    let members = this.vlist<AST.Param>(ctx._members);
+    return new AST.StructDefn(name, members).$(ctx);
+  }
+
+  visitTypeAliasDefn(ctx: TypeAliasDefnContext): AST.TypeAliasDefn {
+    let name = this.visitIdent(ctx._name);
+    let value = this.visit(ctx._value) as AST.TypeExpr;
+    return new AST.TypeAliasDefn(name, value).$(ctx);
   }
 
   visitInterfaceDefn(ctx: InterfaceDefnContext): AST.InterfaceDefn {
@@ -185,8 +229,9 @@ export class CWScriptASTVisitor
     let name = this.visitIdent(ctx._name);
     let params = this.visitFnParams(ctx._params);
     let retTy = ctx._retTy ? (this.visit(ctx._retTy) as AST.TypeExpr) : null;
-    let body = this.visit(ctx._body);
-    return new AST.FnDefn(name, params, retTy, body as AST.Block).$(ctx);
+    let body = this.visitBlock(ctx._body);
+    let fallible = !!ctx._fallible;
+    return new AST.FnDefn(name, fallible, params, retTy, body).$(ctx);
   }
 
   visitFnParams(ctx: FnParamsContext): AST.List<AST.Param> {
@@ -214,13 +259,15 @@ export class CWScriptASTVisitor
     let name = this.visitIdent(ctx._name);
     let params = this.visitFnParams(ctx._params);
     let body = this.visit(ctx._body) as AST.Block;
-    return new AST.ExecDefn(name, params, body).$(ctx);
+    let tup = !!ctx._tup;
+    return new AST.ExecDefn(name, params, body, tup).$(ctx);
   }
 
   visitExecDecl(ctx: ExecDeclContext): AST.ExecDecl {
     let name = this.visitIdent(ctx._name);
     let params = this.visitFnParams(ctx._params);
-    return new AST.ExecDecl(name, params).$(ctx);
+    let tup = !!ctx._tup;
+    return new AST.ExecDecl(name, params, tup).$(ctx);
   }
 
   visitQueryDefn(ctx: QueryDefnContext): AST.QueryDefn {
@@ -496,17 +543,17 @@ export class CWScriptASTVisitor
   }
 
   visitFnCallExpr(ctx: FnCallExprContext): AST.FnCallExpr {
-    const obj = this.visit(ctx.expr()) as AST.Expr;
+    const func = this.visit(ctx.expr()) as AST.Expr;
     const fallible = !!ctx._fallible;
     const args = this.vlist<AST.Arg>(ctx._args);
-    return new AST.FnCallExpr(obj, fallible, args).$(ctx);
+    return new AST.FnCallExpr(func, fallible, args).$(ctx);
   }
 
   visitTypeFnCallExpr(ctx: TypeFnCallExprContext): AST.FnCallExpr {
-    const obj = this.visit(ctx.typeExpr()) as AST.TypeExpr;
+    const func = this.visit(ctx.typeExpr()) as AST.TypeExpr;
     const fallible = !!ctx._fallible;
     const args = this.vlist<AST.Arg>(ctx._args);
-    return new AST.FnCallExpr(obj, fallible, args).$(ctx);
+    return new AST.FnCallExpr(func, fallible, args).$(ctx);
   }
 
   visitMulExpr(ctx: MulExprContext): AST.BinOp {
@@ -640,7 +687,7 @@ export class CWScriptASTVisitor
   }
 
   visitUnitVariantExpr(ctx: UnitVariantExprContext): AST.UnitVariantExpr {
-    let ty = this.visit(ctx.typeVariant()) as AST.TypeVariant;
+    let ty = this.visitTypeVariant(ctx.typeVariant());
     return new AST.UnitVariantExpr(ty).$(ctx);
   }
 
@@ -699,7 +746,6 @@ export class Parser {
 }
 
 import { readFileSync, writeFileSync } from 'fs';
-import { Param } from './ast';
 
 let parser = Parser.fromString(
   readFileSync('./examples/terraswap/TerraswapToken.cws', 'utf8')

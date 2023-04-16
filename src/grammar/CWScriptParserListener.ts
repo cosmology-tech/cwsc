@@ -49,10 +49,7 @@ import { IdentExprContext } from "./CWScriptParser";
 import { Grouped2ExprContext } from "./CWScriptParser";
 import { PathTContext } from "./CWScriptParser";
 import { VariantTContext } from "./CWScriptParser";
-import { InstantiateTContext } from "./CWScriptParser";
-import { ExecTContext } from "./CWScriptParser";
-import { QueryTContext } from "./CWScriptParser";
-import { MutTContext } from "./CWScriptParser";
+import { LensTContext } from "./CWScriptParser";
 import { OptionTContext } from "./CWScriptParser";
 import { ListTContext } from "./CWScriptParser";
 import { TupleTContext } from "./CWScriptParser";
@@ -102,6 +99,7 @@ import { Variant_Context } from "./CWScriptParser";
 import { Variant_structContext } from "./CWScriptParser";
 import { Variant_unitContext } from "./CWScriptParser";
 import { TypeExprContext } from "./CWScriptParser";
+import { TypeLensContext } from "./CWScriptParser";
 import { TypePathContext } from "./CWScriptParser";
 import { TypeVariantContext } from "./CWScriptParser";
 import { TypeDefnContext } from "./CWScriptParser";
@@ -737,56 +735,17 @@ export interface CWScriptParserListener extends ParseTreeListener {
 	exitVariantT?: (ctx: VariantTContext) => void;
 
 	/**
-	 * Enter a parse tree produced by the `InstantiateT`
+	 * Enter a parse tree produced by the `LensT`
 	 * labeled alternative in `CWScriptParser.typeExpr`.
 	 * @param ctx the parse tree
 	 */
-	enterInstantiateT?: (ctx: InstantiateTContext) => void;
+	enterLensT?: (ctx: LensTContext) => void;
 	/**
-	 * Exit a parse tree produced by the `InstantiateT`
+	 * Exit a parse tree produced by the `LensT`
 	 * labeled alternative in `CWScriptParser.typeExpr`.
 	 * @param ctx the parse tree
 	 */
-	exitInstantiateT?: (ctx: InstantiateTContext) => void;
-
-	/**
-	 * Enter a parse tree produced by the `ExecT`
-	 * labeled alternative in `CWScriptParser.typeExpr`.
-	 * @param ctx the parse tree
-	 */
-	enterExecT?: (ctx: ExecTContext) => void;
-	/**
-	 * Exit a parse tree produced by the `ExecT`
-	 * labeled alternative in `CWScriptParser.typeExpr`.
-	 * @param ctx the parse tree
-	 */
-	exitExecT?: (ctx: ExecTContext) => void;
-
-	/**
-	 * Enter a parse tree produced by the `QueryT`
-	 * labeled alternative in `CWScriptParser.typeExpr`.
-	 * @param ctx the parse tree
-	 */
-	enterQueryT?: (ctx: QueryTContext) => void;
-	/**
-	 * Exit a parse tree produced by the `QueryT`
-	 * labeled alternative in `CWScriptParser.typeExpr`.
-	 * @param ctx the parse tree
-	 */
-	exitQueryT?: (ctx: QueryTContext) => void;
-
-	/**
-	 * Enter a parse tree produced by the `MutT`
-	 * labeled alternative in `CWScriptParser.typeExpr`.
-	 * @param ctx the parse tree
-	 */
-	enterMutT?: (ctx: MutTContext) => void;
-	/**
-	 * Exit a parse tree produced by the `MutT`
-	 * labeled alternative in `CWScriptParser.typeExpr`.
-	 * @param ctx the parse tree
-	 */
-	exitMutT?: (ctx: MutTContext) => void;
+	exitLensT?: (ctx: LensTContext) => void;
 
 	/**
 	 * Enter a parse tree produced by the `OptionT`
@@ -1364,6 +1323,17 @@ export interface CWScriptParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	exitTypeExpr?: (ctx: TypeExprContext) => void;
+
+	/**
+	 * Enter a parse tree produced by `CWScriptParser.typeLens`.
+	 * @param ctx the parse tree
+	 */
+	enterTypeLens?: (ctx: TypeLensContext) => void;
+	/**
+	 * Exit a parse tree produced by `CWScriptParser.typeLens`.
+	 * @param ctx the parse tree
+	 */
+	exitTypeLens?: (ctx: TypeLensContext) => void;
 
 	/**
 	 * Enter a parse tree produced by `CWScriptParser.typePath`.

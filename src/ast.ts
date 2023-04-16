@@ -111,7 +111,7 @@ export class ContractDefn extends AST {
   constructor(
     public name: Ident,
     public body: ContractBlock,
-    public base: TypePath | null = null,
+    public base: TypePath | null,
     public interfaces: List<TypePath> = List.empty()
   ) {
     super();
@@ -122,7 +122,7 @@ export class InterfaceDefn extends AST {
   constructor(
     public name: Ident,
     public body: ContractBlock,
-    public base: TypePath | null = null
+    public base: TypePath | null
   ) {
     super();
   }
@@ -133,25 +133,21 @@ export class TypePath extends List<Ident> {}
 export class TypeVariant extends AST {
   constructor(
     public name: TypePath,
-    public expr: Expr | null = null,
-    public variant: Ident | null = null
+    public expr: Expr | null,
+    public variant: Ident | null
   ) {
     super();
   }
 }
 
 export class StructDefn extends AST {
-  constructor(
-    public name: Ident | null = null,
-    public members: List<Param> = List.empty(),
-    public isTuple = false
-  ) {
+  constructor(public name: Ident | null, public members: List<Param>) {
     super();
   }
 }
 
 export class EnumVariantStruct extends AST {
-  constructor(public name: Ident, public members: List<Param> = List.empty()) {
+  constructor(public name: Ident, public members: List<Param>) {
     super();
   }
 }
@@ -186,8 +182,8 @@ export class Param extends AST {
   constructor(
     public name: Ident,
     public ty: TypeExpr | null,
-    public optional: boolean = false,
-    public default_: Expr | null = null
+    public optional: boolean,
+    public default_: Expr | null
   ) {
     super();
   }
@@ -223,7 +219,7 @@ export class StateDefnItem extends AST {
   constructor(
     public name: Ident,
     public ty: TypeExpr,
-    public default_: Expr | null = null
+    public default_: Expr | null
   ) {
     super();
   }
@@ -234,7 +230,7 @@ export class StateDefnMap extends AST {
     public name: Ident,
     public mapKeys: List<MapKeyDefn>,
     public ty: TypeExpr,
-    public default_: Expr | null = null
+    public default_: Expr | null
   ) {
     super();
   }
@@ -247,7 +243,7 @@ export class MapKeyDefn extends AST {
 }
 
 export class InstantiateDefn extends AST {
-  constructor(public params: List<Param> = List.empty(), public body: Block) {
+  constructor(public params: List<Param>, public body: Block) {
     super();
   }
 }
@@ -261,9 +257,9 @@ export class InstantiateDecl extends AST {
 export class ExecDefn extends AST {
   constructor(
     public name: Ident,
-    public params: List<Param> = List.empty(),
+    public params: List<Param>,
     public body: Block,
-    public tup: boolean = false
+    public tup: boolean
   ) {
     super();
   }
@@ -273,7 +269,7 @@ export class ExecDecl extends AST {
   constructor(
     public name: Ident,
     public params: List<Param>,
-    public tup: boolean = false
+    public tup: boolean
   ) {
     super();
   }
@@ -282,10 +278,9 @@ export class ExecDecl extends AST {
 export class QueryDefn extends AST {
   constructor(
     public name: Ident,
-    public params: List<Param> = List.empty(),
+    public params: List<Param>,
     public retTy: TypeExpr | null,
-    public body: Block,
-    public tup: boolean = false
+    public body: Block
   ) {
     super();
   }
@@ -295,8 +290,7 @@ export class QueryDecl extends AST {
   constructor(
     public name: Ident,
     public params: List<Param>,
-    public retTy: TypeExpr | null = null,
-    public tup: boolean = false
+    public retTy: TypeExpr | null
   ) {
     super();
   }
@@ -316,17 +310,17 @@ export class ReplyDefn extends AST {
 export class FnDefn extends AST {
   constructor(
     public name: Ident,
+    public fallible: boolean,
     public params: List<Param>,
     public retTy: TypeExpr | null,
-    public body: Block,
-    public fallible: boolean = false
+    public body: Block
   ) {
     super();
   }
 }
 
 export class LetStmt extends AST {
-  constructor(public binding: LetBinding, public expr: Expr | null = null) {
+  constructor(public binding: LetBinding, public expr: Expr | null) {
     super();
   }
 }
@@ -338,7 +332,7 @@ export enum BindingType {
 }
 
 export class IdentBinding extends AST {
-  constructor(public name: Ident, public ty: TypeExpr | null = null) {
+  constructor(public name: Ident, public ty: TypeExpr | null) {
     super();
   }
 }
@@ -354,7 +348,7 @@ export class ConstStmt extends AST {
 }
 
 export class Annotation extends AST {
-  constructor(public path: TypePath, public args: List<Arg> = List.empty()) {
+  constructor(public path: TypePath, public args: List<Arg>) {
     super();
   }
 }
@@ -397,10 +391,7 @@ export type AssignLHS = IdentLHS | DotLHS | IndexLHS;
 export class TupleExpr extends List<Expr> {}
 
 export class StructExpr extends AST {
-  constructor(
-    public ty: TypeExpr | null,
-    public members: List<MemberVal> = List.empty()
-  ) {
+  constructor(public ty: TypeExpr | null, public members: List<MemberVal>) {
     super();
   }
 }
@@ -415,7 +406,7 @@ export class IfStmt extends AST {
   constructor(
     public pred: Expr,
     public then: Block,
-    public else_: Block | null = null
+    public else_: Block | null
   ) {
     super();
   }
@@ -464,8 +455,8 @@ export class DColonExpr extends AST {
 export class FnCallExpr extends AST {
   constructor(
     public func: Expr | TypeExpr,
-    public tries: boolean = false,
-    public args: List<Arg> = List.empty()
+    public fallible: boolean,
+    public args: List<Arg>
   ) {
     super();
   }
@@ -516,8 +507,8 @@ export class ShortTryExpr extends AST {
 export class TryCatchElseExpr extends AST {
   constructor(
     public body: Block,
-    public catch_: List<CatchClause> = List.empty(),
-    public else_: Block | null = null
+    public catch_: List<CatchClause>,
+    public else_: Block | null
   ) {
     super();
   }
@@ -552,7 +543,7 @@ export class QueryNowExpr extends AST {
 }
 
 export class FailExpr extends AST {
-  constructor(public expr: Expr | null = null) {
+  constructor(public expr: Expr | null) {
     super();
   }
 }
@@ -598,40 +589,23 @@ export type Expr =
   | Closure;
 
 export type TypeExpr =
-  | PathT
-  | VariantT
-  | InstantiateT
-  | ExecT
-  | QueryT
-  | MutT
+  | TypePath
+  | TypeVariant
+  | TypeLens
   | OptionT
   | ListT
   | TupleT
   | TypeDefn;
 
-export type PathT = TypePath;
-export type VariantT = TypeVariant;
-
-export class InstantiateT extends AST {
-  constructor(public path: TypeExpr) {
-    super();
-  }
+export enum Scope {
+  INSTANTIATE = 'instantiate',
+  EXEC = 'exec',
+  QUERY = 'query',
+  MUT = 'mut',
 }
 
-export class ExecT extends AST {
-  constructor(public variant: VariantT) {
-    super();
-  }
-}
-
-export class QueryT extends AST {
-  constructor(public variant: VariantT) {
-    super();
-  }
-}
-
-export class MutT extends AST {
-  constructor(public ty: TypeExpr) {
+export class TypeLens extends AST {
+  constructor(public scope: Scope, public ty: TypePath) {
     super();
   }
 }
@@ -643,16 +617,12 @@ export class OptionT extends AST {
 }
 
 export class ListT extends AST {
-  constructor(public ty: TypeExpr, public size: IntLit | null = null) {
+  constructor(public ty: TypeExpr, public size: number | null) {
     super();
   }
 }
 
-export class TupleT extends AST {
-  constructor(public tys: TypeExpr[]) {
-    super();
-  }
-}
+export class TupleT extends List<TypeExpr> {}
 
 export class Arg extends AST {
   constructor(public name: Ident | null, public expr: Expr) {
@@ -663,7 +633,7 @@ export class Arg extends AST {
 export class Closure extends AST {
   constructor(
     public params: List<Param>,
-    public retTy: TypeExpr | null = null,
+    public retTy: TypeExpr | null,
     public body: Block
   ) {
     super();
@@ -719,7 +689,7 @@ export class DelegateExecStmt extends AST {
 export class InstantiateStmt extends AST {
   constructor(
     public expr: Expr,
-    public new_: boolean = false,
+    public new_: boolean,
     public options: List<MemberVal> | null
   ) {
     super();
@@ -733,13 +703,13 @@ export class EmitStmt extends AST {
 }
 
 export class ReturnStmt extends AST {
-  constructor(public expr: Expr | null = null) {
+  constructor(public expr: Expr | null) {
     super();
   }
 }
 
 export class FailStmt extends AST {
-  constructor(public expr: Expr | null = null) {
+  constructor(public expr: Expr | null) {
     super();
   }
 }

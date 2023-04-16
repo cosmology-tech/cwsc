@@ -49,10 +49,7 @@ import { IdentExprContext } from "./CWScriptParser";
 import { Grouped2ExprContext } from "./CWScriptParser";
 import { PathTContext } from "./CWScriptParser";
 import { VariantTContext } from "./CWScriptParser";
-import { InstantiateTContext } from "./CWScriptParser";
-import { ExecTContext } from "./CWScriptParser";
-import { QueryTContext } from "./CWScriptParser";
-import { MutTContext } from "./CWScriptParser";
+import { LensTContext } from "./CWScriptParser";
 import { OptionTContext } from "./CWScriptParser";
 import { ListTContext } from "./CWScriptParser";
 import { TupleTContext } from "./CWScriptParser";
@@ -102,6 +99,7 @@ import { Variant_Context } from "./CWScriptParser";
 import { Variant_structContext } from "./CWScriptParser";
 import { Variant_unitContext } from "./CWScriptParser";
 import { TypeExprContext } from "./CWScriptParser";
+import { TypeLensContext } from "./CWScriptParser";
 import { TypePathContext } from "./CWScriptParser";
 import { TypeVariantContext } from "./CWScriptParser";
 import { TypeDefnContext } from "./CWScriptParser";
@@ -510,36 +508,12 @@ export interface CWScriptParserVisitor<Result> extends ParseTreeVisitor<Result> 
 	visitVariantT?: (ctx: VariantTContext) => Result;
 
 	/**
-	 * Visit a parse tree produced by the `InstantiateT`
+	 * Visit a parse tree produced by the `LensT`
 	 * labeled alternative in `CWScriptParser.typeExpr`.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	visitInstantiateT?: (ctx: InstantiateTContext) => Result;
-
-	/**
-	 * Visit a parse tree produced by the `ExecT`
-	 * labeled alternative in `CWScriptParser.typeExpr`.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	visitExecT?: (ctx: ExecTContext) => Result;
-
-	/**
-	 * Visit a parse tree produced by the `QueryT`
-	 * labeled alternative in `CWScriptParser.typeExpr`.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	visitQueryT?: (ctx: QueryTContext) => Result;
-
-	/**
-	 * Visit a parse tree produced by the `MutT`
-	 * labeled alternative in `CWScriptParser.typeExpr`.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	visitMutT?: (ctx: MutTContext) => Result;
+	visitLensT?: (ctx: LensTContext) => Result;
 
 	/**
 	 * Visit a parse tree produced by the `OptionT`
@@ -902,6 +876,13 @@ export interface CWScriptParserVisitor<Result> extends ParseTreeVisitor<Result> 
 	 * @return the visitor result
 	 */
 	visitTypeExpr?: (ctx: TypeExprContext) => Result;
+
+	/**
+	 * Visit a parse tree produced by `CWScriptParser.typeLens`.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	visitTypeLens?: (ctx: TypeLensContext) => Result;
 
 	/**
 	 * Visit a parse tree produced by `CWScriptParser.typePath`.
