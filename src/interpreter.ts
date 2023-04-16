@@ -119,7 +119,7 @@ export class NoneType extends Type {
 }
 
 export class StructDefn extends Type {
-  constructor(public name: string, public members: Param[]) {
+  constructor(public name: string, public params: Param[]) {
     super(name);
   }
 
@@ -138,7 +138,7 @@ export class StructDefn extends Type {
 
     // see if there are enough arguments
     if (
-      args.length < this.members.filter((x) => x.default_ !== undefined).length
+      args.length < this.params.filter((x) => x.default_ !== undefined).length
     ) {
       throw new Error(`${this.name}: too few arguments`);
     }
@@ -147,10 +147,10 @@ export class StructDefn extends Type {
 
     args.forEach((arg, i) => {
       if (arg.name === undefined) {
-        if (i >= this.members.length) {
+        if (i >= this.params.length) {
           throw new Error(`${this.name}: too many positional arguments`);
         }
-        params[this.members[i].name] = arg.value;
+        params[this.params[i].name] = arg.value;
       } else {
         params[arg.name] = arg.value;
       }
@@ -160,7 +160,7 @@ export class StructDefn extends Type {
 
   make(args: { [k: string]: any }): StructInstance {
     let instance = new StructInstance(this);
-    for (let m of this.members) {
+    for (let m of this.params) {
       let arg = args[m.name];
       if (arg === undefined) {
         if (m.default_ === undefined) {
@@ -255,12 +255,28 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
   }
 
   visitStructDefn(
-    node: AST.ErrorDefn | AST.EventDefn | AST.StructDefn
+    node:
+      | AST.ErrorDefn
+      | AST.EventDefn
+      | AST.StructDefn
+      | AST.InstantiateDefn
+      | AST.InstantiateDecl
+      | AST.ExecDefn
+      | AST.ExecDecl
+      | AST.QueryDefn
+      | AST.QueryDecl
   ): StructDefn {
-    let name = node.name?.value ?? '%anonymous';
-    let members: any = [];
-
-    node.members.forEach((m, i) => {
+    let name: string;
+    if (
+      node instanceof AST.InstantiateDefn ||
+      node instanceof AST.InstantiateDecl
+    ) {
+      name = `#instantiate`;
+    } else {
+      name = node.name?.value ?? '%anonymous';
+    }
+    let params: any = [];
+    node.params.forEach((m, i) => {
       if (!m.name) {
         throw new Error(`${name}: missing name for member ${i}`);
       }
@@ -274,14 +290,14 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
         default_ = m.default_ ?? new NoneType();
       }
 
-      members.push({
+      params.push({
         name: m.name.value,
         ty,
         default_,
       });
     });
 
-    return new StructDefn(name, members);
+    return new StructDefn(name, params);
   }
 
   visitEnumDefn(node: AST.EnumDefn): EnumDefn {
@@ -358,6 +374,10 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
     return curr;
   }
 
+  visitListT(node: AST.ListT) {
+    return new ListType(this.visit(node.ty), node.size ? node.size : undefined);
+  }
+
   visitContractDefn(node: AST.ContractDefn) {
     let prevScope = this.scope;
     let name = node.name.value;
@@ -407,25 +427,26 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
       }
 
       if (x instanceof AST.InstantiateDefn) {
-        contractDefn.setSymbol('#instantiate', this.visitInstantiateDefn(x));
+        contractDefn.setSymbol('#instantiate', this.visitStructDefn(x));
+        contractDefn.setSymbol('#instantiate#impl', []);
       }
 
       if (x instanceof AST.ExecDefn) {
-        contractDefn.setSymbol('exec#' + x.name.value, this.visitExecDefn(x));
+        contractDefn.setSymbol('exec#' + x.name.value, this.visitStructDefn(x));
+        contractDefn.setSymbol('exec#' + x.name.value + '#impl', []);
       }
 
       if (x instanceof AST.QueryDefn) {
-        contractDefn.setSymbol('query#' + x.name.value, this.visitQueryDefn(x));
+        contractDefn.setSymbol(
+          'query#' + x.name.value,
+          this.visitStructDefn(x)
+        );
+        contractDefn.setSymbol('query#' + x.name.value + '#impl', []);
       }
     });
 
     this.scope = prevScope;
     this.interpreter.setSymbol(name, contractDefn);
-  }
-
-  visitInstantiateDefn(node: AST.InstantiateDefn) {
-    let params = node.params.map((p) => this.visitParam(p));
-    return { params, body: this.visitBlock(node.body) };
   }
 
   visitExecDefn(node: AST.ExecDefn) {

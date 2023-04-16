@@ -247,13 +247,13 @@ export class TypeVariant extends AST {
 }
 
 export class StructDefn extends AST {
-  constructor(public name: Ident | null, public members: List<Param>) {
+  constructor(public name: Ident | null, public params: List<Param>) {
     super();
   }
 }
 
 export class EnumVariantStruct extends AST {
-  constructor(public name: Ident, public members: List<Param>) {
+  constructor(public name: Ident, public params: List<Param>) {
     super();
   }
 }
@@ -510,7 +510,7 @@ export class TupleExpr extends AST {
 }
 
 export class StructExpr extends AST {
-  constructor(public ty: TypeExpr | null, public members: List<MemberVal>) {
+  constructor(public ty: TypeExpr | null, public args: List<MemberVal>) {
     super();
   }
 }
@@ -841,7 +841,6 @@ export class Block extends List<Stmt> {}
 
 export class CWScriptASTVisitor {
   visit(node: AST) {
-    console.log(node.constructor.name);
     // @ts-ignore
     let visitFn = this[`visit${node.constructor.name}`];
     if (visitFn) {

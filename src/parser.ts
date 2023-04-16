@@ -726,7 +726,9 @@ import {
   STDLIB,
   Address,
   String,
+  U8,
   U128,
+  ListType,
 } from './interpreter';
 import util from 'util';
 
@@ -745,6 +747,17 @@ let token = interpreter.getSymbol('TerraswapToken');
 let CW20 = interpreter.getSymbol('CW20');
 console.log(CW20.symbols);
 let CW20Coin = CW20.getSymbol('Coin');
+
+console.log(token);
+let instantiateMsg = token.getSymbol('#instantiate').make({
+  name: String.value('TerraSwap'),
+  symbol: String.value('TERRASWAP'),
+  decimals: U8.value('6'),
+  initial_balances: new ListType(CW20Coin).value([]),
+});
+
+console.log(instantiateMsg);
+
 console.log(
   CW20Coin.call([
     new Arg(U128.value('1000000000000000000000000'), 'amount'),
