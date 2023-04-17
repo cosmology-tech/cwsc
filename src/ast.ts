@@ -547,8 +547,17 @@ export class GroupedExpr extends AST {
   }
 }
 
+export enum UnwrapOp {
+  OR_FAIL = '!',
+  OR_NONE = '?',
+}
+
 export class DotExpr extends AST {
-  constructor(public obj: Expr, public member: Ident) {
+  constructor(
+    public obj: Expr,
+    public unwrap: UnwrapOp | null,
+    public member: Ident
+  ) {
     super();
   }
 }
@@ -599,14 +608,18 @@ export enum Op {
   OR = 'or',
 }
 
-export class BinOp extends AST {
+export class BinOpExpr extends AST {
   constructor(public lhs: Expr, public op: Op, public rhs: Expr) {
     super();
   }
 }
 
 export class IsExpr extends AST {
-  constructor(public lhs: Expr, public rhs: TypeExpr) {
+  constructor(
+    public negative: boolean,
+    public lhs: Expr,
+    public rhs: TypeExpr
+  ) {
     super();
   }
 }

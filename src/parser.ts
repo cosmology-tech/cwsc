@@ -499,8 +499,19 @@ export class CWScriptASTBuilderVisitor
 
   visitDotExpr(ctx: DotExprContext): AST.DotExpr {
     const obj = this.visit(ctx.expr()) as AST.Expr;
+    let unwrap: AST.UnwrapOp | null = null;
+    if (ctx._unwrap) {
+      switch (ctx._unwrap.text) {
+        case '?':
+          unwrap = AST.UnwrapOp.OR_NONE;
+          break;
+        case '!':
+          unwrap = AST.UnwrapOp.OR_FAIL;
+          break;
+      }
+    }
     const member = this.visitIdent(ctx._member);
-    return new AST.DotExpr(obj, member).$(ctx);
+    return new AST.DotExpr(obj, unwrap, member).$(ctx);
   }
 
   visitAsExpr(ctx: AsExprContext): AST.AsExpr {
@@ -541,32 +552,32 @@ export class CWScriptASTBuilderVisitor
     return new AST.FnCallExpr(func, fallible, args).$(ctx);
   }
 
-  visitMulExpr(ctx: MulExprContext): AST.BinOp {
+  visitMulExpr(ctx: MulExprContext): AST.BinOpExpr {
     const lhs = this.visit(ctx.expr()[0]) as AST.Expr;
     const op = ctx._op.text as AST.Op;
     const rhs = this.visit(ctx._rhs) as AST.Expr;
-    return new AST.BinOp(lhs, op, rhs).$(ctx);
+    return new AST.BinOpExpr(lhs, op, rhs).$(ctx);
   }
 
-  visitAddExpr(ctx: AddExprContext): AST.BinOp {
+  visitAddExpr(ctx: AddExprContext): AST.BinOpExpr {
     const lhs = this.visit(ctx.expr()[0]) as AST.Expr;
     const op = ctx._op.text as AST.Op;
     const rhs = this.visit(ctx._rhs) as AST.Expr;
-    return new AST.BinOp(lhs, op, rhs).$(ctx);
+    return new AST.BinOpExpr(lhs, op, rhs).$(ctx);
   }
 
-  visitCompExpr(ctx: CompExprContext): AST.BinOp {
+  visitCompExpr(ctx: CompExprContext): AST.BinOpExpr {
     const lhs = this.visit(ctx.expr()[0]) as AST.Expr;
     const op = ctx._op.text as AST.Op;
     const rhs = this.visit(ctx._rhs) as AST.Expr;
-    return new AST.BinOp(lhs, op, rhs).$(ctx);
+    return new AST.BinOpExpr(lhs, op, rhs).$(ctx);
   }
 
-  visitEqExpr(ctx: EqExprContext): AST.BinOp {
+  visitEqExpr(ctx: EqExprContext): AST.BinOpExpr {
     const lhs = this.visit(ctx.expr()[0]) as AST.Expr;
     const op = ctx._op.text as AST.Op;
     const rhs = this.visit(ctx._rhs) as AST.Expr;
-    return new AST.BinOp(lhs, op, rhs).$(ctx);
+    return new AST.BinOpExpr(lhs, op, rhs).$(ctx);
   }
 
   visitNoneCheckExpr(ctx: NoneCheckExprContext): AST.NoneCheckExpr {
@@ -576,14 +587,15 @@ export class CWScriptASTBuilderVisitor
 
   visitIsExpr(ctx: IsExprContext): AST.IsExpr {
     const lhs = this.visit(ctx.expr()) as AST.Expr;
+    const negative = !!ctx._negative;
     const rhs = this.visit(ctx._rhs) as AST.TypeExpr;
-    return new AST.IsExpr(lhs, rhs).$(ctx);
+    return new AST.IsExpr(negative, lhs, rhs).$(ctx);
   }
 
-  visitInExpr(ctx: InExprContext): AST.BinOp {
+  visitInExpr(ctx: InExprContext): AST.BinOpExpr {
     const lhs = this.visit(ctx.expr()[0]) as AST.Expr;
     const rhs = this.visit(ctx._rhs) as AST.Expr;
-    return new AST.BinOp(lhs, AST.Op.IN, rhs).$(ctx);
+    return new AST.BinOpExpr(lhs, AST.Op.IN, rhs).$(ctx);
   }
 
   visitShortTryExpr(ctx: ShortTryExprContext): AST.TryCatchElseExpr {
@@ -614,16 +626,16 @@ export class CWScriptASTBuilderVisitor
     return new AST.CatchClause(name, ty, body).$(ctx);
   }
 
-  visitAndExpr(ctx: AndExprContext): AST.BinOp {
+  visitAndExpr(ctx: AndExprContext): AST.BinOpExpr {
     const lhs = this.visit(ctx.expr()[0]) as AST.Expr;
     const rhs = this.visit(ctx._rhs) as AST.Expr;
-    return new AST.BinOp(lhs, AST.Op.AND, rhs).$(ctx);
+    return new AST.BinOpExpr(lhs, AST.Op.AND, rhs).$(ctx);
   }
 
-  visitOrExpr(ctx: OrExprContext): AST.BinOp {
+  visitOrExpr(ctx: OrExprContext): AST.BinOpExpr {
     const lhs = this.visit(ctx.expr()[0]) as AST.Expr;
     const rhs = this.visit(ctx._rhs) as AST.Expr;
-    return new AST.BinOp(lhs, AST.Op.OR, rhs).$(ctx);
+    return new AST.BinOpExpr(lhs, AST.Op.OR, rhs).$(ctx);
   }
 
   visitQueryNowExpr(ctx: QueryNowExprContext): AST.QueryNowExpr {
@@ -729,6 +741,7 @@ import {
   U8,
   U128,
   ListType,
+  ContractDefn,
 } from './interpreter';
 import util from 'util';
 
@@ -743,27 +756,24 @@ let interpreter = new CWScriptInterpreter({
   env: STDLIB,
 });
 
-let token = interpreter.getSymbol('TerraswapToken');
-let CW20 = interpreter.getSymbol('CW20');
-console.log(CW20.symbols);
-let CW20Coin = CW20.getSymbol('Coin');
-
-console.log(token);
-let instantiateMsg = token.getSymbol('#instantiate').make({
-  name: String.value('TerraSwap'),
-  symbol: String.value('TERRASWAP'),
-  decimals: U8.value('6'),
-  initial_balances: new ListType(CW20Coin).value([]),
-});
-
-console.log(instantiateMsg);
-
-console.log(
-  CW20Coin.call([
-    new Arg(U128.value('1000000000000000000000000'), 'amount'),
-    new Arg(
-      String.value('terra1hzh9vpxhsk82503lzgdejhp09lk93g9ev39r3h'),
-      'address'
-    ),
-  ])
-);
+// let CW20Coin = CW20.getSymbol('Coin');
+//
+// console.log(token);
+// let instantiateMsg = token.getSymbol('#instantiate').make({
+//   name: String.value('TerraSwap'),
+//   symbol: String.value('TERRASWAP'),
+//   decimals: U8.value('6'),
+//   initial_balances: new ListType(CW20Coin).value([]),
+// });
+//
+// console.log(instantiateMsg);
+//
+// console.log(
+//   CW20Coin.call([
+//     new Arg(U128.value('1000000000000000000000000'), 'amount'),
+//     new Arg(
+//       String.value('terra1hzh9vpxhsk82503lzgdejhp09lk93g9ev39r3h'),
+//       'address'
+//     ),
+//   ])
+// );

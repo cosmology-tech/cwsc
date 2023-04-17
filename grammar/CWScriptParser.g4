@@ -195,7 +195,7 @@ expr:
     | expr (op = (LT | GT | LT_EQ | GT_EQ)) (rhs=expr)  # CompExpr
     | expr (op = (EQ_EQ | NEQ)) (rhs=expr)  # EqExpr
     | expr QUEST # NoneCheckExpr
-    | expr IS (rhs=typeExpr) # IsExpr
+    | expr IS (negative=NOT)? (rhs=typeExpr) # IsExpr
     | expr IN (rhs=expr)                  # InExpr
     | expr D_QUEST (rhs=expr) # ShortTryExpr
     | tryCatchElseExpr_ # TryCatchElseExpr
