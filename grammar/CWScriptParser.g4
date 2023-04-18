@@ -151,7 +151,7 @@ stmt:
     | (ann+=annot)* DELEGATE_EXEC HASH expr SEMI? # DelegateExecStmt
     | (ann+=annot)* INSTANTIATE_NOW (new=HASH)? expr (options=callOptions)? SEMI? # InstantiateStmt
     | (ann+=annot)* EMIT expr SEMI?       # EmitStmt
-    | (ann+=annot)* RETURN expr SEMI?      # ReturnStmt
+    | (ann+=annot)* RETURN expr SEMI      # ReturnStmt
     | (ann+=annot)* FAIL expr SEMI        # FailStmt
     | (ann+=annot)* expr SEMI?             # ExprStmt;
 

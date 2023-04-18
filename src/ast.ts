@@ -844,13 +844,13 @@ export class EmitStmt extends AST {
 }
 
 export class ReturnStmt extends AST {
-  constructor(public expr: Expr | null) {
+  constructor(public expr: Expr) {
     super();
   }
 }
 
 export class FailStmt extends AST {
-  constructor(public expr: Expr | null) {
+  constructor(public expr: Expr) {
     super();
   }
 }

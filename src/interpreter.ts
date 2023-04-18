@@ -8,8 +8,8 @@ export class Type<D = any> extends SymbolTable {
     super();
   }
 
-  check(value: Val): value is Val<this> {
-    return value.ty.isSubOf(this);
+  cast(value: Val): Val<this> {
+    throw new Error(`cannot convert ${value.ty.name} to ${this.name}`);
   }
 
   isSuperOf<T extends Type>(other: T): boolean {
@@ -48,14 +48,40 @@ export class Type<D = any> extends SymbolTable {
     return new Value(this, val);
   }
 
-  static newType<D = any>(name: string) {
-    return new (class extends Type<D> {
-      constructor() {
-        super(name);
-      }
-    })();
+  [operator(AST.Op.EQ)](lhs: Val<Type>, rhs: Val<Type>): Val<Bool> {
+    // check if types are equal
+    console.warn("default implementation of operator '==' used");
+    if (lhs.ty.isEq(rhs.ty)) {
+      return Bool.TRUE;
+    } else {
+      return Bool.FALSE;
+    }
+  }
+
+  [operator(AST.Op.NEQ)](lhs: Val<Type>, rhs: Val<Type>): Val<Bool> {
+    // check if types are equal
+    if (lhs.ty.isEq(rhs.ty)) {
+      return Bool.FALSE;
+    } else {
+      return Bool.TRUE;
+    }
+  }
+
+  callOperator<LHS extends Type, RHS extends Type, RET extends Type>(
+    op: AST.Op,
+    lhs: Val<LHS>,
+    rhs: Val<RHS>
+  ): Val<RET> {
+    // check if types are equal
+    if (operator(op) in this) {
+      let opFn = (this as any)[operator(op)] as OperatorFn<LHS, RHS, RET>;
+      return opFn(lhs, rhs);
+    } else {
+      throw new Error(`operator ${op} not defined for type ${this.name}`);
+    }
   }
 }
+
 export interface Val<T extends Type = Type> {
   ty: T;
 }
@@ -84,8 +110,11 @@ export class OptionalType extends Type {
     super(`${inner.name}?`);
   }
 
-  check(value: Val): value is Val<this> {
-    return None.isEq(value.ty) || this.inner.check(value);
+  isSubOf<T extends Type>(other: T): boolean {
+    return (
+      (other instanceof OptionalType && this.inner.isSubOf(other.inner)) ||
+      super.isSubOf(other)
+    );
   }
 }
 
@@ -100,26 +129,24 @@ export class ListType<T extends Type = Type> extends Type {
     super(`${inner.name}${size ? `[${size}]` : '[]'}`);
   }
 
-  check(value: Val): value is Val<this> {
-    if (value.ty instanceof ListType) {
-      // check inner types match
+  isSubOf(other: Type): boolean {
+    if (other instanceof ListType) {
       if (this.size !== undefined) {
-        return this.inner == value.ty.inner && this.size === value.ty.size;
+        return this.size === other.size && this.inner.isSubOf(other.inner);
       } else {
-        return this.inner == value.ty.inner;
+        return this.inner.isSubOf(other.inner);
       }
-    } else if (value.ty instanceof TupleType) {
-      // check for each item of the Tuple that it matches the inner type
+    } else if (other instanceof TupleType) {
       if (this.size !== undefined) {
         return (
-          value.ty.tys.length === this.size &&
-          value.ty.tys.every((x) => x.isSubOf(this.inner))
+          this.size === other.tys.length &&
+          other.tys.every((x) => this.inner.isSubOf(x))
         );
       } else {
-        return value.ty.tys.every((x) => x.isSubOf(this.inner));
+        return super.isSubOf(other);
       }
     } else {
-      return false;
+      return super.isSubOf(other);
     }
   }
 }
@@ -168,19 +195,19 @@ export class IndexableValue<T extends Type = Type, V extends Type = Type>
     }
 
     let arg = args[0];
-    if (!IntType.check(arg.value)) {
+    if (!checkValue(Int.TYPE, arg.value)) {
       throw new Error(
         `list index must be an integer, got ${arg.value.ty.name}`
       );
     }
 
     // TODO: this is iffy, fix Value vs Val or make an int type
-    let ix = (arg.value as Value).data;
+    let ix = arg.value.data;
     if (ix < 0 || ix >= this.getSize()) {
       throw new Error(`index out of range: ${ix}`);
     }
 
-    return this.items[ix];
+    return this.items[Number(ix)];
   }
 
   setIndex(args: Arg[], val: Val<V>): void {
@@ -189,18 +216,18 @@ export class IndexableValue<T extends Type = Type, V extends Type = Type>
     }
 
     let arg = args[0];
-    if (!IntType.check(arg.value)) {
+    if (!checkValue(Int.TYPE, arg.value)) {
       throw new Error(
         `list index must be an integer, got ${arg.value.ty.name}`
       );
     }
 
-    let ix = (arg.value as Value).data;
+    let ix = arg.value.data;
     if (ix < 0 || ix >= this.getSize()) {
       throw new Error(`index out of range: ${ix}`);
     }
 
-    this.items[ix] = val;
+    this.items[Number(ix)] = val;
   }
 
   getIter(): Iter<V> {
@@ -219,24 +246,34 @@ export class ListInstance<T extends Type = Type> extends IndexableValue<
 
 export class TupleInstance extends IndexableValue<TupleType> {}
 
-export class NoneType extends Type implements Val<NoneType> {
-  public static TYPE: NoneType = new NoneType();
-  public ty: NoneType = NoneType.TYPE;
+export class CWSNone extends Type implements Val<CWSNone> {
+  public static TYPE: CWSNone = new CWSNone();
+  public ty: CWSNone = CWSNone.TYPE;
 
   constructor() {
     super('None');
   }
+
+  isSubOf<T extends Type>(other: T): boolean {
+    return super.isSubOf(other) || other instanceof OptionalType;
+  }
 }
 
-export class BoolType extends Type {
-  public static TYPE: BoolType = new BoolType();
+export class Bool extends Type<boolean> {
+  public static TYPE: Bool = new Bool();
+  public static TRUE: Value<Bool> = new Value(Bool.TYPE, true);
+  public static FALSE: Value<Bool> = new Value(Bool.TYPE, false);
 
   constructor() {
     super('Bool');
   }
 
-  public static isTrue(val: Value<BoolType>): boolean {
-    return val.ty.isEq(BoolType.TYPE) && val.data;
+  public static isTrue(val: any): boolean {
+    if (checkValue(Bool.TYPE, val)) {
+      return val.ty.isEq(Bool.TYPE) && val.data;
+    } else {
+      return false;
+    }
   }
 }
 
@@ -343,7 +380,7 @@ export class FnDefn<T extends Type | undefined = Type> extends Type {
         }
         scope.setSymbol(p.name, p.default_);
       } else {
-        if (p.ty ? p.ty.check(arg.value) : false) {
+        if (p.ty ? check(p.ty, arg.value) : false) {
           throw new Error(
             `${this.name}: invalid argument type for ${p.name} - expected ${
               p.ty!.name
@@ -407,7 +444,7 @@ export class StructDefn extends Type implements Function<StructDefn> {
         }
         instance.setSymbol(m.name, m.default_);
       } else {
-        if (!m.ty!.check(arg)) {
+        if (m.ty !== undefined && !check(m.ty, arg)) {
           throw new Error(
             `${this.name}: invalid type for member ${m.name} - expected ${
               m.ty!.name
@@ -424,10 +461,6 @@ export class StructDefn extends Type implements Function<StructDefn> {
 export class EnumDefn extends Type {
   constructor(public name: string) {
     super(name);
-  }
-
-  check(value: Val): value is Val<this> {
-    return value.ty.isSubOf(this);
   }
 
   isSuperOf<T extends Type>(other: T): boolean {
@@ -469,11 +502,7 @@ export class InstantiateMsg extends StructDefn {
 
 export class ExecMsg extends EnumDefn {
   isSubOf(other: Type): boolean {
-    if (other.isEq(ExecMsgType)) {
-      return true;
-    } else {
-      return super.isSubOf(other);
-    }
+    return other.isEq(ExecMsgType) || super.isSubOf(other);
   }
 }
 
@@ -541,34 +570,143 @@ export class StructInstance<
 //endregion <INODES:VALUES>
 // region <STDLIB>
 
-export const None = new NoneType();
-export const Bool = BoolType.TYPE;
-export const True = Bool.value(true);
-export const False = Bool.value(false);
+export const None = new CWSNone();
 
-const AddressType = Type.newType('Address');
-const IntType = Type.newType<bigint>('Int');
-const DecType = Type.newType('Dec');
-const StringType = Type.newType('String');
-const U8Type = Type.newType('U8');
-const U64Type = Type.newType('U64');
-const U128Type = Type.newType('U128');
-const BinaryType = Type.newType('Binary');
+enum IntSize {
+  SIZE_8 = 8,
+  SIZE_16 = 16,
+  SIZE_32 = 32,
+  SIZE_64 = 64,
+  SIZE_128 = 128,
+}
+class UnsignedInt<S extends IntSize> extends Type<bigint> {
+  constructor(size: S) {
+    super('U' + size.toString());
+  }
+
+  isSubOf(other: Type): boolean {
+    return other.isEq(Int.TYPE) || super.isSubOf(other);
+  }
+}
+
+export const U8 = new UnsignedInt(IntSize.SIZE_8);
+export const U16 = new UnsignedInt(IntSize.SIZE_16);
+export const U32 = new UnsignedInt(IntSize.SIZE_32);
+export const U64 = new UnsignedInt(IntSize.SIZE_64);
+export const U128 = new UnsignedInt(IntSize.SIZE_128);
+
+export type OperatorFn<LHS extends Type, RHS extends Type, RET extends Type> = (
+  lhs: Val<LHS>,
+  rhs: Val<RHS>
+) => Val<RET>;
+
+class Int extends Type<bigint> {
+  static TYPE = new Int();
+  constructor() {
+    super('Int');
+  }
+  cast(other: Val): Value<this, bigint> {
+    if (checkValue(Int.TYPE, other)) {
+      return this.value(other.data);
+    } else {
+      throw new Error(
+        'Cannot convert from ' + other.ty.name + ' to ' + this.name
+      );
+    }
+  }
+
+  [operator(AST.Op.PLUS)](lhs_: Val<Int>, rhs_: Val) {
+    let lhs = this.cast(lhs_);
+    let rhs = this.cast(rhs_);
+    return this.value(lhs.data + rhs.data);
+  }
+
+  [operator(AST.Op.MINUS)](lhs_: Val<Int>, rhs_: Val) {
+    let lhs = this.cast(lhs_);
+    let rhs = this.cast(rhs_);
+    return this.value(lhs.data - rhs.data);
+  }
+
+  [operator(AST.Op.MUL)](lhs_: Val<Int>, rhs_: Val) {
+    let lhs = this.cast(lhs_);
+    let rhs = this.cast(rhs_);
+    return this.value(lhs.data * rhs.data);
+  }
+
+  [operator(AST.Op.DIV)](lhs_: Val<Int>, rhs_: Val) {
+    let lhs = this.cast(lhs_);
+    let rhs = this.cast(rhs_);
+    try {
+      this.value(BigInt(lhs.data / rhs.data));
+    } catch (e) {
+      throw new Error('Cannot divide by zero');
+    }
+  }
+
+  [operator(AST.Op.MOD)](lhs_: Val<Int>, rhs_: Val) {
+    let lhs = this.cast(lhs_);
+    let rhs = this.cast(rhs_);
+    try {
+      this.value(BigInt(lhs.data % rhs.data));
+    } catch (e) {
+      throw new Error('Cannot divide by zero');
+    }
+  }
+
+  [operator(AST.Op.EQ)](lhs_: Val<Int>, rhs_: Val) {
+    let lhs = this.cast(lhs_);
+    let rhs = this.cast(rhs_);
+    return Bool.TYPE.value(lhs.data === rhs.data);
+  }
+}
+
+class CWSString extends Type<string> {
+  static TYPE = new CWSString();
+  constructor() {
+    super('String');
+  }
+}
+
+class Address extends Type<string> {
+  static TYPE = new Address();
+
+  constructor() {
+    super('Address');
+  }
+
+  isSubOf(other: Type): boolean {
+    return other.isEq(CWSString.TYPE) || super.isSubOf(other);
+  }
+}
+
+class Dec extends Type<string> {
+  static TYPE = new Dec();
+  constructor() {
+    super('Dec');
+  }
+}
+
+class Binary extends Type<string> {
+  static TYPE = new Binary();
+  constructor() {
+    super('Binary');
+  }
+}
 
 const CWSError = new ErrorMsg('Error');
 export const UnwrapNone = CWSError.unitVariant('UnwrapNone');
 export const Generic = CWSError.structVariant('Generic', [
-  new Param('message', StringType),
+  new Param('message', CWSString.TYPE),
 ]);
 
 export const STDLIB = {
-  Address: AddressType,
-  Int: IntType,
-  String: StringType,
-  U8: U8Type,
-  U64: U64Type,
-  U128: U64Type,
-  Binary: BinaryType,
+  Address: Address.TYPE,
+  Int: Int.TYPE,
+  String: CWSString.TYPE,
+  U8,
+  U64,
+  U128,
+  Binary: Binary.TYPE,
   Error: CWSError,
 };
 
@@ -576,11 +714,26 @@ export const STDLIB = {
 
 //region <HELPER FUNCTIONS>
 
+function check<T extends Type>(ty: T, val: any): val is Val<T> {
+  return 'ty' in val && val.ty.isSubOf(ty);
+}
+
+type ValueOf<T extends Type> = T extends Type<infer D> ? Value<T, D> : never;
+
+function checkValue<T extends Type>(ty: T, val: any): val is ValueOf<T> {
+  return val instanceof Value && val.ty.isSubOf(ty);
+}
+
 function arg(val: Val, name?: string) {
   return new Arg(val, name);
 }
 function index(ix: number) {
-  return [new Arg(IntType.value(BigInt(ix)))];
+  return [new Arg(Int.TYPE.value(BigInt(ix)))];
+}
+
+type OperatorKey<O extends AST.Op> = `#operator${O}`;
+function operator<O extends AST.Op>(op: O): OperatorKey<O> {
+  return ('#operator' + op) as OperatorKey<O>;
 }
 
 //endregion <HELPER FUNCTIONS>
@@ -612,8 +765,13 @@ export class CWScriptInterpreter extends SymbolTable {
 //region <VISITOR>
 
 export class Failure {
-  constructor(public error: Val<typeof StringType | ErrorMsg>) {}
+  constructor(public error: Val<CWSString | ErrorMsg>) {}
 }
+
+export class Return {
+  constructor(public value: Val) {}
+}
+
 export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
   public ctx: any;
   scope: SymbolTable;
@@ -931,8 +1089,8 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
 
   visitIfStmt(node: AST.IfStmt) {
     let pred = this.visit(node.pred) as Val;
-    if (Bool.check(pred)) {
-      if (BoolType.isTrue(pred as Value<BoolType>)) {
+    if (check(Bool.TYPE, pred)) {
+      if (Bool.isTrue(pred)) {
         return this.visit(node.then);
       } else {
         return node.else_ !== null ? this.visit(node.else_) : None;
@@ -1080,6 +1238,25 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
     }
   }
 
+  visitReturnStmt(node: AST.ReturnStmt) {
+    let val = this.visit<Val>(node.expr);
+    return new Return(val);
+  }
+
+  visitFailStmt(node: AST.FailStmt) {
+    let result = this.visit<Val>(node.expr);
+    if (!check(ErrorType, result) && !check(CWSString.TYPE, result)) {
+      throw new Error(
+        `tried to fail with value other than Error or String: ${result}`
+      );
+    } else {
+      if (check(CWSString.TYPE, result)) {
+        result = Generic.make({ message: result });
+      }
+      return new Failure(result);
+    }
+  }
+
   //endregion <STATEMENTS>
 
   //region <EXPRESSIONS>
@@ -1094,13 +1271,13 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
     if (node.unwrap !== null) {
       (obj as SymbolTable).getSymbol(node.member.value);
     } else if (node.unwrap === AST.UnwrapOp.OR_NONE) {
-      if (None.check(obj)) {
+      if (check(None, obj)) {
         return None;
       } else {
         return (obj as SymbolTable).getSymbol(node.member.value);
       }
     } else {
-      if (None.check(obj)) {
+      if (check(None, obj)) {
         // TODO: result types
         throw new Error(`tried to access member ${node.member.value} of None`);
       } else {
@@ -1151,6 +1328,10 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
     return this.callFn(func, args);
   }
 
+  executeBinOp(op: AST.Op, lhs: Val, rhs: Val) {
+    return lhs.ty.callOperator(op, lhs, rhs);
+  }
+
   visitBinOpExpr(node: AST.BinOpExpr) {
     const lhs = this.visit(node.lhs);
     const rhs = this.visit(node.rhs);
@@ -1159,38 +1340,38 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
 
   visitIsExpr(node: AST.IsExpr) {
     const lhs = this.visit(node.lhs);
-    const rhs = this.visit(node.rhs) as Type;
-    let result = rhs.check(lhs);
-    return node.negative ? !result : result;
+    const rhs = this.visit<Type>(node.rhs);
+    let result = check(rhs, lhs);
+    return node.negative ? Bool.FALSE : Bool.TRUE;
   }
 
   visitNotExpr(node: AST.NotExpr) {
     const expr = this.visit(node.expr) as Val;
 
-    if (Bool.check(expr)) {
-      return BoolType.isTrue(expr as Value<BoolType>) ? False : True;
-    } else if (None.check(expr)) {
-      return True;
+    if (check(Bool.TYPE, expr)) {
+      return Bool.isTrue(expr) ? Bool.FALSE : Bool.TRUE;
+    } else if (check(None, expr)) {
+      return Bool.TRUE;
     } else {
       throw new Error(
-        `tried to negate on expression other than Bool or None: ${expr}`
+        `tried to negate on expression other than Bool or None: ${expr.ty}`
       );
     }
   }
 
   visitNoneCheckExpr(node: AST.NoneCheckExpr) {
     const expr = this.visit(node.expr) as Val;
-    return None.check(expr) ? True : False;
+    return check(None, expr) ? Bool.TRUE : Bool.FALSE;
   }
 
   visitTryCatchElseExpr(node: AST.TryCatchElseExpr) {
     let prevScope = this.scope;
     this.scope = prevScope.subscope(new SymbolTable());
     const result = this.visit(node.body); // Val, ErrorInstance
-    if (ErrorType.check(result)) {
+    if (check(ErrorType, result)) {
       for (let c of node.catch_.toArray()) {
         let ty = this.visit<Type>(c.ty);
-        if (ty.check(result)) {
+        if (check(ty, result)) {
           if (c.name !== null) {
             this.scope.setSymbol(c.name.value, result);
           }
@@ -1202,7 +1383,7 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
       } else {
         return new Failure(result);
       }
-    } else if (None.check(result)) {
+    } else if (check(None, result)) {
       if (node.else_ !== null) {
         return this.visit(node.else_);
       } else {
@@ -1214,13 +1395,13 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
   }
 
   visitFailExpr(node: AST.FailExpr) {
-    let result = this.visit(node.expr);
-    if (!ErrorType.check(result) && !StringType.check(result)) {
+    let result = this.visit<Val>(node.expr);
+    if (!check(ErrorType, result) && !check(CWSString.TYPE, result)) {
       throw new Error(
         `tried to fail with value other than Error or String: ${result}`
       );
     } else {
-      if (StringType.check(result)) {
+      if (check(CWSString.TYPE, result)) {
         result = Generic.make({ message: result });
       }
       return new Failure(result);
@@ -1296,22 +1477,22 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
 
   //region <LITERALS>
   visitStringLit(node: AST.StringLit) {
-    return StringType.value(node.value);
+    return CWSString.TYPE.value(node.value);
   }
 
   visitIntLit(node: AST.IntLit) {
-    return IntType.value(BigInt(node.value));
+    return Int.TYPE.value(BigInt(node.value));
   }
 
   visitDecLit(node: AST.DecLit) {
-    return DecType.value(node.value);
+    return Dec.TYPE.value(node.value);
   }
 
   visitBoolLit(node: AST.BoolLit) {
     if (node.value === 'true') {
-      return True;
+      return Bool.TRUE;
     } else {
-      return False;
+      return Bool.FALSE;
     }
   }
 
