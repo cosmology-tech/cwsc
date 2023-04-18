@@ -741,7 +741,7 @@ import {
   String,
   U8,
   U128,
-  ListType,
+  ListT,
   ContractDefn,
 } from './interpreter';
 import util from 'util';
