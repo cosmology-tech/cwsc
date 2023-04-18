@@ -57,6 +57,7 @@ COMMA: ',';
 D_QUEST: '??';
 QUEST: '?';
 BANG: '!';
+SEMI: ';';
 COLON: ':';
 D_COLON: '::';
 HASH: '#';

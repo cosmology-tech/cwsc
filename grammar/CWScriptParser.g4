@@ -142,18 +142,18 @@ callOptions: (LBRACE ((memberVal) (COMMA memberVal)* COMMA?)? RBRACE);
 
 // Statements
 stmt:
-	(ann+=annot)* letStmt_           # LetStmt
-    | (ann+=annot)* constStmt_ 	   # ConstStmt
-    | (ann+=annot)* assignStmt_      # AssignStmt
-    | (ann+=annot)* ifStmt_          # IfStmt
-    | (ann+=annot)* forStmt_         # ForStmt
-    | (ann+=annot)* EXEC_NOW expr (options=callOptions)? # ExecStmt
-    | (ann+=annot)* DELEGATE_EXEC HASH expr # DelegateExecStmt
-    | (ann+=annot)* INSTANTIATE_NOW (new=HASH)? expr (options=callOptions)? # InstantiateStmt
-    | (ann+=annot)* EMIT expr        # EmitStmt
-    | (ann+=annot)* RETURN expr      # ReturnStmt
-    | (ann+=annot)* FAIL expr        # FailStmt
-    | (ann+=annot)* expr             # ExprStmt;
+	(ann+=annot)* letStmt_ SEMI?           # LetStmt
+    | (ann+=annot)* constStmt_ SEMI?	   # ConstStmt
+    | (ann+=annot)* assignStmt_ SEMI?     # AssignStmt
+    | (ann+=annot)* ifStmt_ SEMI?         # IfStmt
+    | (ann+=annot)* forStmt_ SEMI?        # ForStmt
+    | (ann+=annot)* EXEC_NOW expr (options=callOptions)? SEMI? # ExecStmt
+    | (ann+=annot)* DELEGATE_EXEC HASH expr SEMI? # DelegateExecStmt
+    | (ann+=annot)* INSTANTIATE_NOW (new=HASH)? expr (options=callOptions)? SEMI? # InstantiateStmt
+    | (ann+=annot)* EMIT expr SEMI?       # EmitStmt
+    | (ann+=annot)* RETURN expr SEMI?      # ReturnStmt
+    | (ann+=annot)* FAIL expr SEMI        # FailStmt
+    | (ann+=annot)* expr SEMI?             # ExprStmt;
 
 letStmt_: LET let_binding (EQ expr)?;
 constStmt_: CONST ident EQ expr;
@@ -204,7 +204,7 @@ expr:
     | expr OR (rhs=expr)                  # OrExpr
     | ifStmt_ # IfExpr
     | QUERY_NOW expr # QueryNowExpr
-    | FAIL expr? # FailExpr // TODO: might need a semicolon here
+    | FAIL expr SEMI # FailExpr
     | closure # ClosureExpr
     | LBRACK ((items+=expr) (COMMA (items+=expr))*)? RBRACK # TupleExpr
     | typeExpr? LBRACE ((members+=memberVal) (COMMA members+=memberVal)* COMMA?)? RBRACE # StructExpr
@@ -216,7 +216,7 @@ expr:
 closureParams: BAR ((params+=param) (COMMA (params+=param))*)? BAR;
 
 closure:
-	(params=closureParams) (((ARROW retTy=typeExpr)? block) | stmt);
+	(fallible=BANG)? (params=closureParams) (((ARROW retTy=typeExpr)? block) | stmt);
 
 block: LBRACE (body+=stmt)* RBRACE;
 tryCatchElseExpr_: TRY (body=block) (catches+=catchClause)* (else_=elseClause)?;

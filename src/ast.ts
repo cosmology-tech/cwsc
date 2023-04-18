@@ -186,6 +186,10 @@ export class List<T extends AST = AST> extends AST {
     return this.$children.find(f);
   }
 
+  public toArray(): T[] {
+    return this.$children;
+  }
+
   public at(index: number): T | undefined {
     return this.$children[index];
   }
@@ -675,13 +679,13 @@ export class QueryNowExpr extends AST {
 }
 
 export class FailExpr extends AST {
-  constructor(public expr: Expr | null) {
+  constructor(public expr: Expr) {
     super();
   }
 }
 
 export class UnitVariantExpr extends AST {
-  constructor(public path: TypeVariant) {
+  constructor(public ty: TypeVariant) {
     super();
   }
 }
@@ -768,6 +772,7 @@ export class Arg extends AST {
 
 export class Closure extends AST {
   constructor(
+    public fallible: boolean,
     public params: List<Param>,
     public retTy: TypeExpr | null,
     public body: Block
@@ -853,11 +858,15 @@ export class FailStmt extends AST {
 export class Block extends List<Stmt> {}
 
 export class CWScriptASTVisitor {
-  visit(node: AST) {
+  visit<T = any>(node: AST): T {
     // @ts-ignore
     let visitFn = this[`visit${node.constructor.name}`];
     if (visitFn) {
-      return visitFn.call(this, node);
+      return visitFn.call(this, node) as T;
+    } else {
+      throw new Error(
+        `Method 'visit${node.constructor.name}()' not implemented.`
+      );
     }
   }
 }

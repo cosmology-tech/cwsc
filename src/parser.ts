@@ -650,6 +650,7 @@ export class CWScriptASTBuilderVisitor
   }
 
   visitClosure(ctx: ClosureContext): AST.Closure {
+    let fallible = !!ctx._fallible;
     let params = this.visitClosureParams(ctx._params);
     let retTy = ctx._retTy ? (this.visit(ctx._retTy) as AST.TypeExpr) : null;
     let body: AST.Block;
@@ -660,7 +661,7 @@ export class CWScriptASTBuilderVisitor
     } else {
       body = this.visitBlock(ctx.block()!);
     }
-    return new AST.Closure(params, retTy, body).$(ctx);
+    return new AST.Closure(fallible, params, retTy, body).$(ctx);
   }
 
   visitTupleExpr(ctx: TupleExprContext): AST.TupleExpr {

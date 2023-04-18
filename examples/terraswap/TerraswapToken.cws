@@ -358,3 +358,14 @@ contract TerraswapToken implements CW20 {
     }
   }
 }
+
+
+try {
+	let amount = a + b
+	let b = something!(amount) // fail
+} catch e: Fail {
+	3 + amount
+} else {
+	4
+}
+

@@ -1,83 +1,51 @@
 import * as AST from './ast';
+import { SymbolTable } from './util/symbol-table';
 
-export interface CWScriptInterpreterContext {
-  files: {
-    [filename: string]: AST.SourceFile;
-  };
-
-  env?: {
-    [globalName: string]: any;
-  };
-}
-
-export class SymbolTable {
-  constructor(public symbols: any = {}, public parent?: SymbolTable) {}
-
-  getSymbol<T = any>(name: string): T {
-    if (name in this.symbols) {
-      return this.symbols[name];
-    }
-
-    if (this.parent) {
-      return this.parent.getSymbol(name);
-    }
-
-    throw new Error(`symbol ${name} not found`);
-  }
-
-  setSymbol(name: string, value: any) {
-    this.symbols[name] = value;
-  }
-
-  subscope<T extends SymbolTable>(x: T): T {
-    x.parent = this;
-    return x;
-  }
-}
-
-export class CWScriptInterpreter extends SymbolTable {
-  constructor(public ctx: CWScriptInterpreterContext) {
-    super({}, new SymbolTable(ctx.env));
-    let visitor = new CWScriptInterpreterVisitor(this);
-    Object.keys(this.ctx.files).forEach((filename) => {
-      visitor.visit(this.ctx.files[filename]);
-    });
-  }
-}
-
-export class Param extends SymbolTable {
-  constructor(public name: string, public ty: Type, public default_?: any) {
-    super();
-  }
-}
-
-export class Arg extends SymbolTable {
-  constructor(public value: Value, public name?: string) {
-    super();
-  }
-}
+//region <INODES:META>
 
 export class Type extends SymbolTable {
   constructor(public name: string) {
     super();
   }
 
-  check(value: Val): boolean {
-    return value.ty.isType(this);
+  check(value: Val): value is Val<this> {
+    return value.ty.isSuperOf(this);
+  }
+
+  isSuperOf<T extends Type>(other: T): boolean {
+    // TODO: implement this for all types
+    return this.isEq(other) || other.isSubOf(this);
   }
 
   /**
    * Checks if this <: other, i.e. if this can be converted to
    * other without losing information.
-   * @param ty
    */
-  isType(other: Type): boolean {
+  isSubOf<T extends Type>(other: T): boolean {
     // TODO: implement this for all types
-    return other instanceof this.constructor;
+    return this.isEq(other) || other.isSuperOf(this);
   }
 
-  value(val: any): Value<this> {
-    return new Value(this, val);
+  isEq<T extends Type>(other: T): boolean {
+    // make sure all properties match
+    if (!(other instanceof this.constructor)) {
+      return false;
+    } else {
+      for (let key in this) {
+        if (this[key] != (other as any)[key]) {
+          return false;
+        }
+      }
+      return true;
+    }
+  }
+
+  isCompatibleWith(other: Type): boolean {
+    return this.isSuperOf(other) || other.isSuperOf(this);
+  }
+
+  value(val?: any): Value<this> {
+    return new Value(this, val ?? undefined);
   }
 
   static newType(name: string) {
@@ -88,7 +56,6 @@ export class Type extends SymbolTable {
     })();
   }
 }
-
 export interface Val<T extends Type = Type> {
   ty: T;
 }
@@ -97,7 +64,17 @@ export class Value<T extends Type = Type>
   extends SymbolTable
   implements Val<T>
 {
-  constructor(public ty: T, public value?: any) {
+  constructor(public ty: T, public data?: any) {
+    super();
+  }
+}
+
+//endregion <INODES:META>
+
+//region <INODES:TYPES>
+
+export class Param extends SymbolTable {
+  constructor(public name: string, public ty: Type, public default_?: any) {
     super();
   }
 }
@@ -108,13 +85,19 @@ export class OptionalType extends Type {
   }
 
   check(value: Val): boolean {
-    return None.isType(value.ty) || this.inner.check(value);
+    return None.isSubOf(value.ty) || this.inner.check(value);
   }
 }
 
 export class TupleType extends Type {
   constructor(public tys: Type[]) {
     super(`[${tys.map((x) => x.name).join(', ')}]`);
+  }
+}
+
+export class TupleInstance extends Value<TupleType> {
+  constructor(public ty: TupleType, public items: Val[]) {
+    super(ty);
   }
 }
 
@@ -136,10 +119,10 @@ export class ListType<T extends Type = Type> extends Type {
       if (this.size !== undefined) {
         return (
           value.ty.tys.length === this.size &&
-          value.ty.tys.every((x) => x.isType(this.inner))
+          value.ty.tys.every((x) => x.isSubOf(this.inner))
         );
       } else {
-        return value.ty.tys.every((x) => x.isType(this.inner));
+        return value.ty.tys.every((x) => x.isSubOf(this.inner));
       }
     } else {
       return false;
@@ -164,7 +147,7 @@ export class ListInstance<T extends Type = Type>
       throw new Error(`list index requires 1 argument, got ${args.length}`);
     }
 
-    let ix = args[0].value.value;
+    let ix = args[0].value.data;
     if (ix < 0 || ix >= this.items.length) {
       throw new Error(`index out of range: ${ix}`);
     }
@@ -189,21 +172,53 @@ export class BoolType extends Type {
     super('Bool');
   }
 
-  isTrue(val: Value<BoolType>): boolean {
-    return val.ty.isType(this) && val.value;
+  public static isTrue(val: Value<BoolType>): boolean {
+    return val.ty.isEq(BoolType.TYPE) && val.data;
   }
 }
 
-export const None = new NoneType();
-export const Bool = BoolType.TYPE;
-export const True = Bool.value(true);
-export const False = Bool.value(false);
+//endregion <INODES:TYPES>
+
+//region <INODES:DEFINITIONS>
+export class ContractDefn extends Type {
+  constructor(public name: string) {
+    super(name);
+  }
+
+  instantiate(args: any[]) {
+    this.getSymbol('#instantiate').call(args);
+  }
+
+  exec(fnName: string, args: any[]) {
+    this.getSymbol('exec#' + fnName).call(args);
+  }
+
+  query(fnName: any, args: any[]) {
+    return this.getSymbol('query#' + fnName).call(args);
+  }
+}
+export class InterfaceDefn extends SymbolTable {
+  constructor(public name: string) {
+    super();
+  }
+}
+export class StateMap extends SymbolTable {
+  constructor(public prefix: string, public mapKeys: Type[], public ty: Type) {
+    super();
+  }
+}
+
+export class StateItem extends SymbolTable {
+  constructor(public key: string, public ty: Type) {
+    super();
+  }
+}
 
 export interface Function<T extends Type = Type> {
   call(args: Arg[]): Val<T>;
 }
 
-export class FnDefn<T extends Type = Type> extends Type {
+export class FnDefn<T extends Type | undefined = Type> extends Type {
   // if name is %anonymous%, then this is a lambda defn
   constructor(
     public name: string,
@@ -344,35 +359,81 @@ export class EnumDefn extends Type {
     super(name);
   }
 
-  check(value: Val): boolean {
+  check(value: Val): value is Val<this> {
     // TODO: need to change this to be more strict,
     //  which involves making StructVariant and UnitVariant types
-    return value.ty.name.startsWith(this.name + '.#');
+    if (
+      !(value.ty instanceof EnumVariantStructDefn) &&
+      !(value.ty instanceof EnumVariantUnitDefn)
+    ) {
+      return false;
+    }
+    return value.ty.isEq(this);
+  }
+
+  isSuperOf<T extends Type>(other: T): boolean {
+    if (
+      other instanceof EnumVariantStructDefn ||
+      other instanceof EnumVariantUnitDefn
+    ) {
+      return this.isEq(other.ty);
+    } else {
+      return super.isSuperOf(other);
+    }
+  }
+
+  structVariant(name: string, params: Param[]) {
+    const defn = new EnumVariantStructDefn(this, name, params);
+    this.setSymbol(name, defn);
+    return defn;
+  }
+
+  unitVariant(name: string) {
+    const defn = new EnumVariantUnitDefn(this, name);
+    this.setSymbol(name, defn);
+    return defn;
   }
 }
 
-export class StructInstance<
-  T extends StructDefn = StructDefn
-> extends Value<T> {}
-
-export class ErrorDefn extends StructDefn {}
-export class EventDefn extends StructDefn {}
-
-export class ContractDefn extends Type {
-  constructor(public name: string) {
-    super(name);
+export class ErrorType extends EnumDefn {
+  static isError(ty: Type): boolean {
+    return ty instanceof ErrorType;
   }
 
-  instantiate(args: any[]) {
-    this.getSymbol('#instantiate').call(args);
+  static checkError(value: Val): boolean {
+    return value.ty instanceof ErrorType;
   }
+}
 
-  exec(fnName: string, args: any[]) {
-    this.getSymbol('exec#' + fnName).call(args);
+export class EventType extends EnumDefn {
+  static isEvent(ty: Type): boolean {
+    return ty instanceof EventType;
   }
+}
 
-  query(fnName: any, args: any[]) {
-    return this.getSymbol('query#' + fnName).call(args);
+export class EnumVariantStructDefn extends StructDefn {
+  constructor(
+    public ty: EnumDefn,
+    public variantName: string,
+    public params: Param[]
+  ) {
+    super(`${ty.name}.#${variantName}`, params);
+  }
+}
+
+export class EnumVariantUnitDefn extends Type {
+  constructor(public ty: EnumDefn, public variantName: string) {
+    super(`${ty.name}.#${variantName}`);
+  }
+}
+
+//endregion <INODES:DEFNS>
+
+//region <INODES:VALUES>
+
+export class Arg extends SymbolTable {
+  constructor(public value: Value, public name?: string) {
+    super();
   }
 }
 
@@ -381,25 +442,76 @@ export class ContractInstance extends Value<ContractDefn> {
     super(ty);
   }
 }
+export class StructInstance<
+  T extends StructDefn = StructDefn
+> extends Value<T> {}
 
-export class StateMap extends SymbolTable {
-  constructor(public prefix: string, public mapKeys: Type[], public ty: Type) {
-    super();
+//endregion <INODES:VALUES>
+
+// region <STDLIB>
+
+export const None = new NoneType();
+export const Bool = BoolType.TYPE;
+export const True = Bool.value(true);
+export const False = Bool.value(false);
+
+const AddressType = Type.newType('Address');
+const IntType = Type.newType('Int');
+const DecType = Type.newType('Dec');
+const StringType = Type.newType('String');
+const U8Type = Type.newType('U8');
+const U64Type = Type.newType('U64');
+const U128Type = Type.newType('U128');
+const BinaryType = Type.newType('Binary');
+
+const CWSError = new ErrorType('Error');
+export const UnwrapNone = CWSError.unitVariant('UnwrapNone');
+export const Generic = CWSError.structVariant('Generic', [
+  new Param('message', StringType),
+]);
+
+export const STDLIB = {
+  Address: AddressType,
+  Int: IntType,
+  String: StringType,
+  U8: U8Type,
+  U64: U64Type,
+  U128: U64Type,
+  Binary: BinaryType,
+  Error: CWSError,
+};
+
+//endregion <STDLIB>
+
+//region <INTERPRETER>
+
+export interface CWScriptInterpreterContext {
+  files: {
+    [filename: string]: AST.SourceFile;
+  };
+
+  env?: {
+    [globalName: string]: any;
+  };
+}
+
+export class CWScriptInterpreter extends SymbolTable {
+  constructor(public ctx: CWScriptInterpreterContext) {
+    super({}, new SymbolTable(ctx.env));
+    let visitor = new CWScriptInterpreterVisitor(this);
+    Object.keys(this.ctx.files).forEach((filename) => {
+      visitor.visit(this.ctx.files[filename]);
+    });
   }
 }
 
-export class StateItem extends SymbolTable {
-  constructor(public key: string, public ty: Type) {
-    super();
-  }
-}
+//endregion <INTERPRETER>
 
-export class InterfaceDefn extends SymbolTable {
-  constructor(public name: string) {
-    super();
-  }
-}
+//region <VISITOR>
 
+export class Failure {
+  constructor(public error: Val<StringType | ErrorType>) {}
+}
 export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
   public ctx: any;
   scope: SymbolTable;
@@ -608,15 +720,11 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
     node.variants.forEach((v, i) => {
       if (v instanceof AST.EnumVariantStruct) {
         let structDefn = this.visitStructDefn(v);
-        structDefn.name = name + '.#' + v.name.value;
-        enumDefn.setSymbol('#' + v.name.value, this.visitStructDefn(v));
+        enumDefn.structVariant(name, structDefn.params);
       }
 
       if (v instanceof AST.EnumVariantUnit) {
-        enumDefn.setSymbol(
-          '#' + v.name.value,
-          new Type(name + '.#' + v.name.value)
-        );
+        enumDefn.unitVariant(name);
       }
     });
     return enumDefn;
@@ -660,6 +768,19 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
   //region <STATEMENTS>
   visitBlock(node: AST.Block) {
     return node.map((x) => this.visit(x));
+  }
+
+  visitIfStmt(node: AST.IfStmt) {
+    let pred = this.visit(node.pred) as Val;
+    if (Bool.check(pred)) {
+      if (BoolType.isTrue(pred as Value<BoolType>)) {
+        return this.visit(node.then);
+      } else {
+        return node.else_ !== null ? this.visit(node.else_) : None;
+      }
+    } else {
+      throw new Error(`predicate must be a Bool, got ${pred.ty}`);
+    }
   }
 
   //endregion <STATEMENTS>
@@ -728,7 +849,7 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
   visitBinOpExpr(node: AST.BinOpExpr) {
     const lhs = this.visit(node.lhs);
     const rhs = this.visit(node.rhs);
-    return executeBinOp(node.op, lhs, rhs);
+    return this.executeBinOp(node.op, lhs, rhs);
   }
 
   visitIsExpr(node: AST.IsExpr) {
@@ -742,12 +863,120 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
     const expr = this.visit(node.expr) as Val;
 
     if (Bool.check(expr)) {
-      return Bool.isTrue(expr) ? False : True;
+      return BoolType.isTrue(expr as Value<BoolType>) ? False : True;
     } else if (None.check(expr)) {
       return True;
     } else {
-      throw new Error(`tried to negate non-bool: ${expr}`);
+      throw new Error(
+        `tried to negate on expression other than Bool or None: ${expr}`
+      );
     }
+  }
+
+  visitNoneCheckExpr(node: AST.NoneCheckExpr) {
+    const expr = this.visit(node.expr) as Val;
+    return None.check(expr) ? True : False;
+  }
+
+  visitTryCatchElseExpr(node: AST.TryCatchElseExpr) {
+    let prevScope = this.scope;
+    this.scope = prevScope.subscope(new SymbolTable());
+    const result = this.visit(node.body); // Val, ErrorInstance
+    if (ErrorType.checkError(result)) {
+      for (let c of node.catch_.toArray()) {
+        let ty = this.visit<Type>(c.ty);
+        if (ty.check(result)) {
+          if (c.name !== null) {
+            this.scope.setSymbol(c.name.value, result);
+          }
+          return this.visit(c.body);
+        }
+      }
+      if (node.else_ !== null) {
+        return this.visit(node.else_);
+      } else {
+        return new Failure(result);
+      }
+    } else if (None.check(result)) {
+      if (node.else_ !== null) {
+        return this.visit(node.else_);
+      } else {
+        return new Failure(UnwrapNone.value());
+      }
+    } else {
+      return result;
+    }
+  }
+
+  visitFailExpr(node: AST.FailExpr) {
+    let result = this.visit(node.expr);
+    if (!ErrorType.checkError(result) && !StringType.check(result)) {
+      throw new Error(
+        `tried to fail with value other than Error or String: ${result}`
+      );
+    } else {
+      if (StringType.check(result)) {
+        result = Generic.make({ message: result });
+      }
+      return new Failure(result);
+    }
+  }
+
+  visitClosure(node: AST.Closure) {
+    let params = node.params.map((x) => this.visitParam(x));
+    let retTy = node.retTy !== null ? this.visit<Type>(node.retTy) : undefined;
+    return new FnDefn('%anonymous', node.fallible, params, retTy, node.body);
+  }
+
+  visitTupleExpr(node: AST.TupleExpr) {
+    let exprs = node.exprs.map((x) => this.visit(x));
+    let tupType = new TupleType(exprs.map((x) => x.ty));
+    return new TupleInstance(tupType, exprs);
+  }
+
+  visitStructExpr(node: AST.StructExpr) {
+    if (node.ty === null) {
+      let args: any = {};
+      let ty = new StructDefn(
+        '%anonymous',
+        node.args.map((m) => {
+          let value: any;
+          if (m.value === null) {
+            value = this.visit(m.name);
+          } else {
+            value = this.visit(m.value);
+          }
+          args[m.name.value] = value;
+          return new Param(m.name.value, value.ty);
+        })
+      );
+      return ty.make(args);
+    } else {
+      let ty = this.visit<Type>(node.ty);
+      if (ty instanceof StructDefn) {
+        throw new Error(`tried to instantiate non-struct type: ${ty}`);
+      }
+      let args: any = {};
+      for (let m of node.args.toArray()) {
+        let value: any;
+        if (m.value === null) {
+          value = this.visit(m.name);
+        } else {
+          value = this.visit(m.value);
+        }
+        args[m.name.value] = value;
+      }
+      return (ty as unknown as StructDefn).make(args);
+    }
+  }
+
+  visitUnitVariantExpr(node: AST.UnitVariantExpr) {
+    let ty = this.visit<EnumVariantUnitDefn>(node.ty);
+    return (ty as unknown as EnumVariantUnitDefn).value();
+  }
+
+  visitIdent(node: AST.Ident) {
+    return this.scope.getSymbol(node.value);
   }
 
   visitGroupedExpr(node: AST.GroupedExpr) {
@@ -759,22 +988,32 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
   }
 
   //endregion <EXPRESSIONS>
+
+  //region <LITERALS>
+  visitStringLit(node: AST.StringLit) {
+    return StringType.value(node.value);
+  }
+
+  visitIntLit(node: AST.IntLit) {
+    return IntType.value(node.value);
+  }
+
+  visitDecLit(node: AST.DecLit) {
+    return DecType.value(node.value);
+  }
+
+  visitBoolLit(node: AST.BoolLit) {
+    if (node.value === 'true') {
+      return True;
+    } else {
+      return False;
+    }
+  }
+
+  visitNoneLit(node: AST.NoneLit) {
+    return None;
+  }
+  //endregion <LITERALS>
 }
 
-export const Address = Type.newType('Address');
-export const Int = Type.newType('Int');
-export const String = Type.newType('String');
-export const U8 = Type.newType('U8');
-export const U64 = Type.newType('U64');
-export const U128 = Type.newType('U128');
-export const Binary = Type.newType('Binary');
-
-export const STDLIB = {
-  Address,
-  Int,
-  String,
-  U8,
-  U64,
-  U128,
-  Binary,
-};
+//endregion <VISITOR>
