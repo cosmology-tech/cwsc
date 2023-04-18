@@ -1,25 +1,50 @@
 export class SymbolTable {
-	constructor(public symbols: any = {}, public parent?: SymbolTable) {
-	}
+  constructor(public symbols: any = {}, public parent?: SymbolTable) {}
 
-	getSymbol<T = any>(name: string): T {
-		if (name in this.symbols) {
-			return this.symbols[name];
-		}
+  getSymbol<T = any>(name: string): T {
+    if (name in this.symbols) {
+      return this.symbols[name];
+    }
 
-		if (this.parent) {
-			return this.parent.getSymbol(name);
-		}
+    if (this.parent) {
+      return this.parent.getSymbol(name);
+    }
 
-		throw new Error(`symbol ${name} not found`);
-	}
+    throw new Error(`symbol ${name} not found`);
+  }
 
-	setSymbol(name: string, value: any) {
-		this.symbols[name] = value;
-	}
+  setSymbol(name: string, value: any) {
+    this.symbols[name] = value;
+  }
 
-	subscope<T extends SymbolTable>(x: T): T {
-		x.parent = this;
-		return x;
-	}
+  firstTableWithSymbol(name: string): SymbolTable | undefined {
+    if (name in this.symbols) {
+      return this;
+    }
+
+    if (this.parent) {
+      return this.parent.firstTableWithSymbol(name);
+    }
+
+    return undefined;
+  }
+
+  hasSymbol(name: string): boolean {
+    return this.firstTableWithSymbol(name) !== undefined;
+  }
+
+  hasOwnSymbol(name: string): boolean {
+    return name in this.symbols;
+  }
+
+  subscope<T extends SymbolTable = SymbolTable>(x?: T): T {
+    if (x === undefined) {
+      let res = new SymbolTable();
+      res.parent = this;
+      return res as T;
+    } else {
+      x.parent = this;
+      return x;
+    }
+  }
 }
