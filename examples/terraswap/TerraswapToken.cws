@@ -113,7 +113,7 @@ contract TerraswapToken implements CW20 {
   fn validate_accounts!(accounts: CW20Coin[]) {
     let addresses = accounts.map(|c| c.address).sort().dedup()
     if addresses.len() != accounts.len() {
-      fail! DuplicateInitialBalanceAddresses()
+      fail! DuplicateInitialBalanceAddresses();
     }
   }
 
@@ -142,7 +142,7 @@ contract TerraswapToken implements CW20 {
     mint?: MinterData // MinterResponse is loaded in because we are implementing the type
   ) {
     validate_accounts!(accounts) // usage of validate_accounts! function
-    let total_supply = create_accounts!($, initial_balances) // need to use mut $
+                                                                              let total_supply = create_accounts!($, initial_balances) // need to use mut $
                                         // which gives us a mutable context
 
     // mint?.cap? <- let's break this down
@@ -150,7 +150,7 @@ contract TerraswapToken implements CW20 {
     // else, it continues. sort of like unwrap or
     // notice that mint.cap should be verified as not being None after it passes the "and"
     if mint?.cap? and total_supply > mint.cap {
-      fail! "Initial supply greater than cap"
+      fail! "Initial supply greater than cap";
     }
 
     // notice: "MinterData" is a struct, but we are calling it like a function.
@@ -166,7 +166,7 @@ contract TerraswapToken implements CW20 {
     if amount == 0 {
       // the fail! keyword lets the contract return a predefined error
       // or a alternatively, a String error message
-      fail! InvalidZeroAmount()
+      fail! InvalidZeroAmount();
     }
 
     let rcpt_addr = Address!(recipient)
@@ -180,9 +180,8 @@ contract TerraswapToken implements CW20 {
 
   exec #Burn(amount: Int) {
     if amount == 0 {
-      fail! InvalidZeroAmount()
+      fail! InvalidZeroAmount();
     }
-
     $state.balances[info.sender] -= amount // checked_sub automatically called
     $state.token_info.total_supply -= amount
 
@@ -191,7 +190,7 @@ contract TerraswapToken implements CW20 {
 
   exec #Mint(recipient: String, amount: Int) {
     if amount == 0 {
-      fail! InvalidZeroAmount()
+      fail! InvalidZeroAmount();
     }
     // if $state.config.mint == None, then it will bubble up already
     let config = $state.config // alias for $state.config
@@ -200,7 +199,7 @@ contract TerraswapToken implements CW20 {
     // config.mint could be None. if it is None and you it is
     // unwrapped by "!", it would cause an error
     if config.mint!.minter != msginfo.sender {
-      fail! Unauthorized()
+      fail! Unauthorized();
     }
 
     config.total_supply += amount
@@ -209,7 +208,7 @@ contract TerraswapToken implements CW20 {
     // noticed the "?" is a "None-check" rather than unwrapping
     // like in Rust
     if limit? and config.total_supply > limit {
-      fail! CannotExceedCap()
+      fail! CannotExceedCap();
     }
 
     $state.token_info = $state.config
@@ -222,7 +221,7 @@ contract TerraswapToken implements CW20 {
 
   exec #send(contract: String, amount: Int, msg: Binary) {
     if amount == 0 {
-      fail! InvalidZeroAmount()
+      fail! InvalidZeroAmount();
     }
 
     let rcpt_addr = Address!(contract)
@@ -242,7 +241,7 @@ contract TerraswapToken implements CW20 {
   ) {
     let spender_addr = Address!(spender)
     if spender_addr == $info.sender {
-      fail! CannotSetOwnAccount()
+      fail! CannotSetOwnAccount();
     }
 
     let allow = $state.allowances[env.sender, spender_addr]
@@ -258,7 +257,7 @@ contract TerraswapToken implements CW20 {
   exec #decrease_allowance(spender: String, amount: Int, expires?: Expiration) {
     let spender_addr = Address!(spender)
     if spender_addr == $info.sender {
-      fail! CannotSetOwnAccount()
+      fail! CannotSetOwnAccount();
     }
 
     let allowance = $state.allowances[$info.sender, spender_addr]
@@ -358,14 +357,3 @@ contract TerraswapToken implements CW20 {
     }
   }
 }
-
-
-try {
-	let amount = a + b
-	let b = something!(amount) // fail
-} catch e: Fail {
-	3 + amount
-} else {
-	4
-}
-

@@ -30,11 +30,11 @@ contractBlock: LBRACE (body+=contractItem)* RBRACE;
 // Import Statement
 importStmt:
 	// import * from "..."
-    IMPORT MUL FROM (src = StringLiteral) # ImportAllStmt
+    IMPORT MUL FROM (src = StringLiteral) SEMI? # ImportAllStmt
     // import { a } from "..."
     | IMPORT (
         (LBRACE (items += ident) (COMMA items += ident)* RBRACE)
-    ) FROM (src = StringLiteral) # ImportItemsStmt;
+    ) FROM (src = StringLiteral) SEMI? # ImportItemsStmt;
 
 contractItem:
     typeDefn

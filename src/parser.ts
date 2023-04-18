@@ -645,7 +645,7 @@ export class CWScriptASTBuilderVisitor
 
   visitFailExpr(ctx: FailExprContext): AST.FailExpr {
     let expr_ = ctx.expr();
-    const obj = expr_ ? (this.visit(expr_) as AST.Expr) : null;
+    const obj = this.visit(expr_) as AST.Expr;
     return new AST.FailExpr(obj).$(ctx);
   }
 
@@ -731,50 +731,3 @@ export class CWScriptParser {
     return visitor.visitSourceFile(tree);
   }
 }
-
-import { readFileSync, writeFileSync } from 'fs';
-import {
-  Arg,
-  CWScriptInterpreter,
-  STDLIB,
-  Address,
-  String,
-  U8,
-  U128,
-  ListT,
-  ContractDefn,
-} from './interpreter';
-import util from 'util';
-
-let ast = CWScriptParser.parse(
-  readFileSync('./examples/terraswap/TerraswapToken.cws', 'utf8')
-);
-
-let interpreter = new CWScriptInterpreter({
-  files: {
-    './examples/terraswap/TerraswapToken.cws': ast,
-  },
-  env: STDLIB,
-});
-
-// let CW20Coin = CW20.getSymbol('Coin');
-//
-// console.log(token);
-// let instantiateMsg = token.getSymbol('#instantiate').make({
-//   name: String.value('TerraSwap'),
-//   symbol: String.value('TERRASWAP'),
-//   decimals: U8.value('6'),
-//   initial_balances: new ListType(CW20Coin).value([]),
-// });
-//
-// console.log(instantiateMsg);
-//
-// console.log(
-//   CW20Coin.call([
-//     new Arg(U128.value('1000000000000000000000000'), 'amount'),
-//     new Arg(
-//       String.value('terra1hzh9vpxhsk82503lzgdejhp09lk93g9ev39r3h'),
-//       'address'
-//     ),
-//   ])
-// );

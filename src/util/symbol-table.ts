@@ -1,5 +1,11 @@
+type SymbolEnv = {
+  [key: string]: any;
+};
 export class SymbolTable {
-  constructor(public symbols: any = {}, public parent?: SymbolTable) {}
+  public symbols: SymbolEnv;
+  constructor(symbols?: SymbolEnv, public parent?: SymbolTable) {
+    this.symbols = symbols ?? {};
+  }
 
   getSymbol<T = any>(name: string): T {
     if (name in this.symbols) {

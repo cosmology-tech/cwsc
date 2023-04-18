@@ -12,13 +12,12 @@ type Impl<Y extends Value = any> = { impl: Y };
 
 // This is for external access
 type ValueOf<T> = T extends Type<infer D>
-	? D extends Data<infer X>
-		? Value<T, X>
-		: D extends Impl<infer Y>
-			? Y
-			: never
-	: never;
-
+  ? D extends Data<infer X>
+    ? Value<T, X>
+    : D extends Impl<infer Y>
+    ? Y
+    : never
+  : never;
 
 // This is for internal access (avoiding recursion)
 type GetV<T extends Type, D extends Data | Impl> = D extends Data<infer X>
@@ -27,11 +26,9 @@ type GetV<T extends Type, D extends Data | Impl> = D extends Data<infer X>
   ? Y
   : never;
 
-export abstract class Type<
-  D extends Data | Impl = Data | Impl
-> extends SymbolTable {
+export class Type<D extends Data | Impl = Data | Impl> extends SymbolTable {
   constructor(public name: string) {
-    super(name);
+    super({});
   }
 
   /**
@@ -69,9 +66,11 @@ export abstract class Type<
     return new Value(this, data) as any;
   }
 
-  abstract convertFrom<F extends Type>(val: ValueOf<F>): GetV<this, D>;
+  convertFrom<F extends Type>(val: ValueOf<F>): GetV<this, D> {
+    throw new Error(`Method not implemented.`);
+  }
 
-  convertInto<T extends Type>(into: T, val: Value<this, D>): ValueOf<T> {
+  convertInto<T extends Type>(into: T, val: Value<this>): ValueOf<T> {
     if (!this.canConvertInto(into)) {
       throw new Error(`cannot convert ${this.name} into ${into.name}`);
     }
@@ -111,15 +110,15 @@ export abstract class Type<
     }
   }
 
-  callOperator<LHS extends Type, RHS extends Type, RET extends Type>(
+  callOperator<RHS extends Type, RET extends Type>(
     op: AST.Op,
-    lhs: Value<LHS>,
-    rhs: Value<RHS>
-  ): Value<RET> {
+    lhs: Value<this>,
+    rhs: ValueOf<RHS>
+  ): ValueOf<RET> {
     // check if types are equal
     if (operator(op) in this) {
-      let opFn = (this as any)[operator(op)] as OperatorFn<LHS, RHS, RET>;
-      return opFn(lhs, rhs);
+      let opFn = (this as any)[operator(op)] as OperatorFn<this, RHS, RET>;
+      return opFn(lhs as ValueOf<this>, rhs);
     } else {
       throw new Error(`operator ${op} not defined for type ${this.name}`);
     }
@@ -130,8 +129,8 @@ export class Value<
   T extends Type = Type,
   D extends any = any
 > extends SymbolTable {
-  constructor(public ty: T, public data: D | undefined = undefined) {
-    super();
+  constructor(public ty: T, public data: D) {
+    super({});
   }
 }
 
@@ -145,39 +144,40 @@ export class Param extends SymbolTable {
   }
 }
 
-export class OptionalT<T extends Type> extends Type<Data<any>> {
+export class OptionT<T extends Type = any> extends Type<Data<any>> {
   constructor(public inner: T) {
     super(`${inner.name}?`);
   }
 
   isSubOf(other: Type): boolean {
     return (
-      (other instanceof OptionalT && this.inner.isSubOf(other.inner)) ||
+      (other instanceof OptionT && this.inner.isSubOf(other.inner)) ||
       super.isSubOf(other)
     );
   }
 
   convertFrom<F extends Type>(val: ValueOf<F>): GetV<this, Data<any>> {
-		if (checkC(OptionalT, val)) {
-			return this.value(val.data);
-		} else if (check(CWSNone.TYPE, val)) {
-			return this.value(null);
-		} else {
-			throw new Error(`cannot convert ${val.ty.name} into ${this.name}`);
-		}
+    throw new Error('Method not implemented.');
+    if (checkC(OptionT, val)) {
+      return this.value(val.data);
+    } else if (check(CWSNone.TYPE, val)) {
+      return this.value(null);
+    } else {
+      throw new Error(`cannot convert ${val.ty.name} into ${this.name}`);
+    }
   }
 
-	value(data: any): GetV<this, Data<any>> {
-		// TODO: replace null with CWSNone
-		if (data === null) {
-			return new Value(this, null);
-		} else {
-			return new Value(this, this.inner.value(data));
-		}
-	}
+  value(data: any): GetV<this, Data<any>> {
+    // TODO: replace null with CWSNone
+    if (data === null) {
+      return new Value(this, null);
+    } else {
+      return new Value(this, this.inner.value(data));
+    }
+  }
 
   canConvertFrom(other: Type): boolean {
-    if (other instanceof OptionalT) {
+    if (other instanceof OptionT) {
       return this.inner.canConvertFrom(other.inner);
     } else if (other.isEq(CWSNone.TYPE)) {
       return true;
@@ -192,15 +192,8 @@ export class TupleT extends Type<Impl<TupleInstance>> {
     super(`[${tys.map((x) => x.name).join(', ')}]`);
   }
 
-  convertFrom<F extends Type>(val: ValueOf<F>): Value<this, Impl<TupleInstance>> {
-    if (checkC(TupleT, val) && val instsanceof TupleInstance) {
-			// todo
-			throw new Error("not implemented");
-    } else if (checkC(ListT, val)) {
-      throw new Error(`cannot convert ${val.ty.name} into ${this.name}`);
-    } else {
-      throw new Error(`cannot convert ${val.ty.name} into ${this.name}`);
-    }
+  convertFrom<F extends Type>(val: ValueOf<F>): TupleInstance {
+    throw new Error('Method not implemented.');
   }
 
   value(data: Value[]): TupleInstance {
@@ -208,9 +201,13 @@ export class TupleT extends Type<Impl<TupleInstance>> {
   }
 }
 
-export class ListT<T extends Type = Type> extends Type {
+export class ListT<T extends Type = Type> extends Type<Impl<ListInstance<T>>> {
   constructor(public inner: T, public size?: number) {
     super(`${inner.name}${size ? `[${size}]` : '[]'}`);
+  }
+
+  convertFrom<F extends Type>(val: ValueOf<F>): ListInstance<T> {
+    throw new Error('Method not implemented.');
   }
 
   isSubOf(other: Type): boolean {
@@ -249,7 +246,7 @@ export class IndexableIter<T extends Type = Type> implements Iter<T> {
     if (this.ix >= this.parent.getSize()) {
       return undefined;
     }
-    return this.parent.getIndex([new Arg(IntType.value(this.ix++))]);
+    return this.parent.getIndex([new Arg(Int.TYPE.value(this.ix++))]);
   }
 }
 
@@ -281,6 +278,7 @@ export class IndexableValue<T extends Type = Type, V extends Type = Type>
     let arg = args[0];
     if (!check(Int.TYPE, arg.value)) {
       throw new Error(
+        // @ts-ignore
         `list index must be an integer, got ${arg.value.ty.name}`
       );
     }
@@ -302,6 +300,7 @@ export class IndexableValue<T extends Type = Type, V extends Type = Type>
     let arg = args[0];
     if (!check(Int.TYPE, arg.value)) {
       throw new Error(
+        // @ts-ignore
         `list index must be an integer, got ${arg.value.ty.name}`
       );
     }
@@ -344,6 +343,7 @@ export class CWSNone extends Type<Data<null>> {
 
   convertFrom<O extends Type>(other: Value<O>): GetV<this, Data<null>> {
     if (!check(CWSNone.TYPE, other)) {
+      // @ts-ignore
       throw new Error(`Cannot convert ${other.ty.name} to None`);
     } else {
       return new Value(this, null);
@@ -355,7 +355,7 @@ export class CWSNone extends Type<Data<null>> {
   }
 
   isSubOf<T extends Type>(other: T): boolean {
-    return super.isSubOf(other) || other instanceof OptionalT;
+    return super.isSubOf(other) || other instanceof OptionT;
   }
 }
 
@@ -371,9 +371,10 @@ export class Bool extends Type<Data<boolean>> {
 
   public static isTrue(val: any): boolean {
     if (check(Bool.TYPE, val)) {
-      return val.ty.isEq(Bool.TYPE) && val.data;
+      return val.data;
     } else {
-      return false;
+      // @ts-ignore
+      throw new Error(`Cannot convert ${val.ty.name} to Bool`);
     }
   }
 
@@ -381,7 +382,8 @@ export class Bool extends Type<Data<boolean>> {
     return !Bool.isTrue(val);
   }
 
-  convertFrom<O extends Type>(other: ValueOf<O>): GetValue<this, Data<boolean>> {
+  convertFrom<O extends Type>(other: ValueOf<O>): GetV<this, Data<boolean>> {
+    throw new Error('Method not implemented.');
     if (check(Int.TYPE, other)) {
       return new Value(this, other.data !== BigInt(0));
     } else if (check(Bool.TYPE, other)) {
@@ -395,9 +397,13 @@ export class Bool extends Type<Data<boolean>> {
 //endregion <INODES:TYPES>
 
 //region <INODES:DEFINITIONS>
-export class ContractDefn extends Type {
+export class ContractDefn extends Type<Impl<ContractInstance>> {
   constructor(public name: string) {
     super(name);
+  }
+
+  convertFrom<F extends Type>(other: ValueOf<F>): ContractInstance<this> {
+    throw new Error('Method not implemented.');
   }
 
   instantiate(args: any[]) {
@@ -410,6 +416,15 @@ export class ContractDefn extends Type {
 
   query(fnName: any, args: any[]) {
     return this.getSymbol('query#' + fnName).call(args);
+  }
+
+  value(address: any): ContractInstance<this> {
+    if (check(CWSString.TYPE, address)) {
+      return new ContractInstance(this, address);
+    } else {
+      // @ts-ignore
+      throw new Error(`Cannot convert ${address.ty.name} to ContractInstance`);
+    }
   }
 }
 export class InterfaceDefn extends SymbolTable {
@@ -443,16 +458,20 @@ export interface Function<T extends Type = Type> {
   call(args: Arg[]): Value<T>;
 }
 
-export class FnDefn<T extends Type | undefined = Type> extends Type {
+export class FnDefn<T extends Type = Type> extends Type {
   // if name is %anonymous%, then this is a lambda defn
   constructor(
     public name: string,
     public fallible: boolean,
     public params: Param[],
-    public retTy: T,
+    public retTy: T | undefined,
     public body: AST.Block
   ) {
     super(name);
+  }
+
+  convertFrom<F extends Type>(val: ValueOf<F>): GetV<this, Data | Impl> {
+    throw new Error('Method not implemented.');
   }
 
   setArgsInScope(scope: SymbolTable, args: Arg[]) {
@@ -518,9 +537,16 @@ export class FnDefn<T extends Type | undefined = Type> extends Type {
   }
 }
 
-export class StructDefn extends Type implements Function<StructDefn> {
+export class StructDefn
+  extends Type<Impl<StructInstance>>
+  implements Function<StructDefn>
+{
   constructor(public name: string, public params: Param[]) {
     super(name);
+  }
+
+  convertFrom<F extends Type>(val: ValueOf<F>): StructInstance<this> {
+    throw new Error('Method not implemented.');
   }
 
   call(args: Arg[]): StructInstance<this> {
@@ -559,7 +585,7 @@ export class StructDefn extends Type implements Function<StructDefn> {
   }
 
   make(args: { [k: string]: any }): StructInstance<this> {
-    let instance = new StructInstance(this);
+    let instance = new StructInstance(this, undefined);
 
     for (let m of this.params) {
       let arg = args[m.name];
@@ -569,7 +595,7 @@ export class StructDefn extends Type implements Function<StructDefn> {
         }
         instance.setSymbol(m.name, m.default_);
       } else {
-        if (m.ty !== undefined && !check(m.ty, arg)) {
+        if (m.ty !== undefined && !arg.ty.isSubOf(m.ty!)) {
           throw new Error(
             `${this.name}: invalid type for member ${m.name} - expected ${
               m.ty!.name
@@ -583,9 +609,13 @@ export class StructDefn extends Type implements Function<StructDefn> {
   }
 }
 
-export class EnumDefn extends Type {
+export class EnumDefn extends Type<Impl<Value>> {
   constructor(public name: string) {
     super(name);
+  }
+
+  convertFrom<F extends Type>(val: ValueOf<F>): any {
+    throw new Error('Method not implemented.');
   }
 
   isSuperOf<T extends Type>(other: T): boolean {
@@ -607,6 +637,7 @@ export class EnumDefn extends Type {
 
   unitVariant(name: string) {
     const defn = new EnumVariantUnitDefn(this, name);
+    console.log(defn);
     this.setSymbol(name, defn);
     return defn;
   }
@@ -683,9 +714,11 @@ export class Arg extends SymbolTable {
   }
 }
 
-export class ContractInstance extends Value<ContractDefn> {
-  constructor(public ty: ContractDefn, public address: string) {
-    super(ty);
+export class ContractInstance<
+  C extends ContractDefn = ContractDefn
+> extends Value<ContractDefn, null> {
+  constructor(public ty: ContractDefn, public address: ValueOf<CWSString>) {
+    super(ty, null);
   }
 }
 export class StructInstance<
@@ -713,12 +746,12 @@ class UnsignedInt extends Type<Data<bigint>> {
     return other.isEq(Int.TYPE) || super.isSubOf(other);
   }
 
-	convertFrom<F extends Type>(val: ValueOf<F>): GetValue<this, Data<bigint>> {
-		if (check(CWSString.TYPE, val)) {
-			return this.value(BigInt(val.data));
-		}
-		throw new Error(`Cannot convert ${(val as any).ty.name} to ${this.name}!`)
-	}
+  convertFrom<F extends Type>(val: ValueOf<F>): GetV<this, Data<bigint>> {
+    if (check(CWSString.TYPE, val)) {
+      return this.value(BigInt(val.data));
+    }
+    throw new Error(`Cannot convert ${(val as any).ty.name} to ${this.name}!`);
+  }
 }
 
 export const U8 = new UnsignedInt(IntSize.SIZE_8);
@@ -728,60 +761,61 @@ export const U64 = new UnsignedInt(IntSize.SIZE_64);
 export const U128 = new UnsignedInt(IntSize.SIZE_128);
 
 export type OperatorFn<LHS extends Type, RHS extends Type, RET extends Type> = (
-  lhs: Data<LHS>,
-  rhs: Data<RHS>
-) => Data<RET>;
+  lhs: ValueOf<LHS>,
+  rhs: ValueOf<RHS>
+) => ValueOf<RET>;
 
 class Int extends Type<Data<bigint>> {
   static TYPE = new Int();
   constructor() {
     super('Int');
   }
-  [operator(AST.Op.PLUS)](lhs_: Data<Int>, rhs_: Data) {
-    let lhs = cast(this, lhs_);
-    let rhs = this.cast(rhs_);
-    return this.value(lhs.data + rhs.data);
-  }
+  // [operator(AST.Op.PLUS)](lhs_: Data<Int>, rhs_: Data) {
+  //   let lhs = cast(this, lhs_);
+  //   let rhs = this.cast(rhs_);
+  //   return this.value(lhs.data + rhs.data);
+  // }
+  //
+  // [operator(AST.Op.MINUS)](lhs_: Data<Int>, rhs_: Data) {
+  //   let lhs = this.cast(lhs_);
+  //   let rhs = this.cast(rhs_);
+  //   return this.value(lhs.data - rhs.data);
+  // }
+  //
+  // [operator(AST.Op.MUL)](lhs_: Data<Int>, rhs_: Data) {
+  //   let lhs = this.cast(lhs_);
+  //   let rhs = this.cast(rhs_);
+  //   return this.value(lhs.data * rhs.data);
+  // }
+  //
+  // [operator(AST.Op.DIV)](lhs_: Data<Int>, rhs_: Data) {
+  //   let lhs = this.cast(lhs_);
+  //   let rhs = this.cast(rhs_);
+  //   try {
+  //     this.value(BigInt(lhs.data / rhs.data));
+  //   } catch (e) {
+  //     throw new Error('Cannot divide by zero');
+  //   }
+  // }
+  //
+  // [operator(AST.Op.MOD)](lhs_: Data<Int>, rhs_: Data) {
+  //   let lhs = this.cast(lhs_);
+  //   let rhs = this.cast(rhs_);
+  //   try {
+  //     this.value(BigInt(lhs.data % rhs.data));
+  //   } catch (e) {
+  //     throw new Error('Cannot divide by zero');
+  //   }
+  // }
+  //
+  // [operator(AST.Op.EQ)](lhs_: Data<Int>, rhs_: Data) {
+  //   let lhs = this.cast(lhs_);
+  //   let rhs = this.cast(rhs_);
+  //   return Bool.TYPE.value(lhs.data === rhs.data);
+  // }
 
-  [operator(AST.Op.MINUS)](lhs_: Data<Int>, rhs_: Data) {
-    let lhs = this.cast(lhs_);
-    let rhs = this.cast(rhs_);
-    return this.value(lhs.data - rhs.data);
-  }
-
-  [operator(AST.Op.MUL)](lhs_: Data<Int>, rhs_: Data) {
-    let lhs = this.cast(lhs_);
-    let rhs = this.cast(rhs_);
-    return this.value(lhs.data * rhs.data);
-  }
-
-  [operator(AST.Op.DIV)](lhs_: Data<Int>, rhs_: Data) {
-    let lhs = this.cast(lhs_);
-    let rhs = this.cast(rhs_);
-    try {
-      this.value(BigInt(lhs.data / rhs.data));
-    } catch (e) {
-      throw new Error('Cannot divide by zero');
-    }
-  }
-
-  [operator(AST.Op.MOD)](lhs_: Data<Int>, rhs_: Data) {
-    let lhs = this.cast(lhs_);
-    let rhs = this.cast(rhs_);
-    try {
-      this.value(BigInt(lhs.data % rhs.data));
-    } catch (e) {
-      throw new Error('Cannot divide by zero');
-    }
-  }
-
-  [operator(AST.Op.EQ)](lhs_: Data<Int>, rhs_: Data) {
-    let lhs = this.cast(lhs_);
-    let rhs = this.cast(rhs_);
-    return Bool.TYPE.value(lhs.data === rhs.data);
-  }
-
-  convertFrom<O extends Type>(other: ValueOf<O>): GetValue<this, Data<bigint>> {
+  convertFrom<O extends Type>(other: ValueOf<O>): GetV<this, Data<bigint>> {
+    throw new Error('Method not implemented.');
     if (check(CWSString.TYPE, other)) {
       return this.value(BigInt(other.data));
     } else if (
@@ -806,21 +840,22 @@ class Int extends Type<Data<bigint>> {
   }
 }
 
-class CWSString extends Type<Data<string>> {
+export class CWSString extends Type<Data<string>> {
   static TYPE = new CWSString();
   constructor() {
     super('String');
   }
 
-  convertFrom<F extends Type>(val: ValueOf<F>): GetValue<this, Data<string>> {
-		if (check(Int.TYPE, val) || checkC(UnsignedInt, val))) {
-			return this.value(val.data.toString());
-		}
-		throw new Error('Cannot convert from ' + val.ty.name);
-	}
+  convertFrom<F extends Type>(val: ValueOf<F>): GetV<this, Data<string>> {
+    if (check(Int.TYPE, val) || checkC(UnsignedInt, val)) {
+      return this.value(val.data.toString());
+    }
+    // @ts-ignore
+    throw new Error('Cannot convert from ' + val.ty.name);
+  }
 }
 
-class Address extends Type<string> {
+export class Address extends Type<Data<string>> {
   static TYPE = new Address();
 
   constructor() {
@@ -832,14 +867,14 @@ class Address extends Type<string> {
   }
 }
 
-class Dec extends Type<string> {
+class Dec extends Type<Data<string>> {
   static TYPE = new Dec();
   constructor() {
     super('Dec');
   }
 }
 
-class Binary extends Type<string> {
+class Binary extends Type<Data<string>> {
   static TYPE = new Binary();
   constructor() {
     super('Binary');
@@ -874,7 +909,7 @@ function check<T extends Type>(
   if (ty === undefined) {
     return val instanceof Value;
   } else {
-    return val instanceof Value && val.ty.isSubOf(ty);
+    return val instanceof Value && val.ty.isEq(ty);
   }
 }
 
@@ -1097,6 +1132,11 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
     return curr;
   }
 
+  visitOptionT(node: AST.OptionT): OptionT {
+    let ty = this.visit<Type>(node.ty);
+    return new OptionT(ty);
+  }
+
   visitStructDefn(
     node:
       | AST.ErrorDefn
@@ -1128,7 +1168,7 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
       let ty = this.visit(p.ty!);
       let default_ = p.default_ ? this.visit(p.default_) : undefined;
       if (p.optional) {
-        ty = new OptionalT(ty);
+        ty = new OptionT(ty);
         default_ = p.default_ ?? None;
       }
       return new Param(p.name.value, ty, default_);
@@ -1178,10 +1218,13 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
     return new FnDefn(name, fallible, params, retTy, node.body);
   }
 
+  /**
+   * This visits the function definition for the instantiate message.
+   * @param node
+   */
   visitInstantiateDefn(node: AST.InstantiateDefn) {
     let params = node.params.map((p) => this.visitParam(p));
-    let body = this.visitBlock(node.body);
-    return {};
+    return new FnDefn('#instantiate', false, params, undefined, node.body);
   }
 
   visitExecDefn(node: AST.ExecDefn) {
@@ -1257,7 +1300,7 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
   }
 
   visitIfStmt(node: AST.IfStmt) {
-    let pred = this.visit(node.pred) as Data;
+    let pred = this.visit<Value>(node.pred);
     if (check(Bool.TYPE, pred)) {
       if (Bool.isTrue(pred)) {
         return this.visit(node.then);
@@ -1265,6 +1308,7 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
         return node.else_ !== null ? this.visit(node.else_) : None;
       }
     } else {
+      // @ts-ignore
       throw new Error(`predicate must be a Bool, got ${pred.ty}`);
     }
   }
@@ -1326,9 +1370,9 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
   }
 
   visitExecStmt(node: AST.ExecStmt) {
-    let val = this.visit<Data>(node.expr);
+    let val = this.visit<Value>(node.expr);
 
-    // check that val is an ExecMsg
+    // check that val is an ExecMsg// @ts-ignore
     if (!val.ty.isSubOf(ExecMsgType)) {
       throw new Error(`tried to execute non-executable type ${val.ty.name}`);
     } else {
@@ -1393,7 +1437,7 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
       }
     } else {
       // not #new
-      let val = this.visit<Data>(node.expr);
+      let val = this.visit<Value>(node.expr);
       if (val.ty.isSubOf(InstantiateMsgType)) {
         let res = this.scope.getSymbol<StructInstance>('$res');
         let msgs =
@@ -1408,12 +1452,12 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
   }
 
   visitReturnStmt(node: AST.ReturnStmt) {
-    let val = this.visit<Data>(node.expr);
+    let val = this.visit<Value>(node.expr);
     return new Return(val);
   }
 
   visitFailStmt(node: AST.FailStmt) {
-    let result = this.visit<Data>(node.expr);
+    let result = this.visit<Value>(node.expr);
     if (!check(ErrorType, result) && !check(CWSString.TYPE, result)) {
       throw new Error(
         `tried to fail with value other than Error or String: ${result}`
@@ -1460,7 +1504,7 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
   }
 
   visitIndexExpr(node: AST.IndexExpr) {
-    const obj = this.visit(node.obj) as Data;
+    const obj = this.visit<Value>(node.obj);
     if (obj.ty instanceof ListT || obj.ty instanceof TupleT) {
       const args = node.args.map((x) => this.visitArg(x));
       return (obj as unknown as Indexable).getIndex(args);
@@ -1523,6 +1567,7 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
       return Bool.TRUE;
     } else {
       throw new Error(
+        // @ts-ignore
         `tried to negate on expression other than Bool or None: ${expr.ty}`
       );
     }
@@ -1556,7 +1601,7 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
       if (node.else_ !== null) {
         return this.visit(node.else_);
       } else {
-        return new Failure(UnwrapNone.value());
+        return new Failure(UnwrapNone.value(null));
       }
     } else {
       return result;
@@ -1564,7 +1609,7 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
   }
 
   visitFailExpr(node: AST.FailExpr) {
-    let result = this.visit<Data>(node.expr);
+    let result = this.visit<Value>(node.expr);
     if (!check(ErrorType, result) && !check(CWSString.TYPE, result)) {
       throw new Error(
         `tried to fail with value other than Error or String: ${result}`
@@ -1627,7 +1672,7 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
 
   visitUnitVariantExpr(node: AST.UnitVariantExpr) {
     let ty = this.visit<EnumVariantUnitDefn>(node.ty);
-    return (ty as unknown as EnumVariantUnitDefn).value();
+    return (ty as unknown as EnumVariantUnitDefn).value(null);
   }
 
   visitIdent(node: AST.Ident) {
