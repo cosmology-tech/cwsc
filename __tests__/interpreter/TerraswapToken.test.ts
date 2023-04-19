@@ -30,7 +30,6 @@ describe('Interpreter: TerraswapToken', () => {
       'terra1hzh9vpxhsk82503se0vv5jj6etdvxu3nv8z07e'
     );
     let myToken = TerraswapToken.value(myAddress);
-    console.log(myToken);
     expect(TerraswapToken).toBeDefined();
     expect(TerraswapToken).toBeInstanceOf(ContractDefn);
   });
