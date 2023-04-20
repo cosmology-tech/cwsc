@@ -118,10 +118,13 @@ typeExpr:
     typePath # PathT
     | typeVariant # VariantT
 	| typeLens # LensT
+	| fnType # FnT
     | typeExpr QUEST                                                    # OptionT
     | typeExpr LBRACK (len=IntLiteral)? RBRACK                          # ListT
     | LBRACK (items+=typeExpr (COMMA items+=typeExpr)*)? RBRACK 		# TupleT
     | typeDefn                                                          # DefnT;
+
+fnType: (fallible=BANG)? LPAREN (params=paramList)? RPAREN ARROW retTy=typeExpr;
 
 typeLens: scope=(INSTANTIATE | EXEC | QUERY | MUT) typePath;
 typePath: (segments+=ident) (DOT segments+=ident)*;
@@ -151,8 +154,8 @@ stmt:
     | (ann+=annot)* DELEGATE_EXEC HASH expr SEMI? # DelegateExecStmt
     | (ann+=annot)* INSTANTIATE_NOW (new=HASH)? expr (options=callOptions)? SEMI? # InstantiateStmt
     | (ann+=annot)* EMIT expr SEMI?       # EmitStmt
-    | (ann+=annot)* RETURN expr SEMI      # ReturnStmt
-    | (ann+=annot)* FAIL expr SEMI        # FailStmt
+    | (ann+=annot)* RETURN expr (semi=SEMI)?      # ReturnStmt
+    | (ann+=annot)* FAIL expr (semi=SEMI)?        # FailStmt
     | (ann+=annot)* expr SEMI?             # ExprStmt;
 
 letStmt_: LET let_binding (EQ expr)?;
@@ -204,7 +207,7 @@ expr:
     | expr OR (rhs=expr)                  # OrExpr
     | ifStmt_ # IfExpr
     | QUERY_NOW expr # QueryNowExpr
-    | FAIL expr SEMI # FailExpr
+    | FAIL expr (semi=SEMI) # FailExpr
     | closure # ClosureExpr
     | LBRACK ((items+=expr) (COMMA (items+=expr))*)? RBRACK # TupleExpr
     | typeExpr? LBRACE ((members+=memberVal) (COMMA members+=memberVal)* COMMA?)? RBRACE # StructExpr
@@ -243,7 +246,7 @@ elseClause: ELSE block | ELSE stmt;
 forStmt_:
     FOR (binding=let_binding) IN (iter=expr) body=block;
 
-ident: Ident | reservedKeyword;
+ident: (Ident | reservedKeyword);
 
 reservedKeyword:
     CONTRACT

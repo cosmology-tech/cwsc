@@ -97,6 +97,7 @@ import {
   StructDefnContext,
   TypeAliasDefnContext,
   TypeVariantContext,
+  ArgContext,
 } from './grammar/CWScriptParser';
 import { CWScriptLexer as ANTLRCWScriptLexer } from './grammar/CWScriptLexer';
 import { CharStreams, CommonTokenStream, ParserRuleContext } from 'antlr4ts';
@@ -146,7 +147,7 @@ export class CWScriptASTBuilderVisitor
     return new AST.OptionT(ty).$(ctx);
   }
 
-  visitListT(ctx: ListTContext): AST.ListT {
+  visitListT(ctx: ListTContext): AST.ListT | AST.TupleT {
     let ty = this.visit(ctx.typeExpr()) as AST.TypeExpr;
     let len = ctx._len ? Number.parseInt(ctx._len.text!) : null;
     return new AST.ListT(ty, len).$(ctx);
@@ -483,7 +484,7 @@ export class CWScriptASTBuilderVisitor
 
   visitIndexLHS(ctx: IndexLHSContext): AST.IndexLHS {
     const obj = this.visit(ctx._obj) as AST.Expr;
-    const args = this.vlist<AST.Arg>(ctx._args);
+    const args = this.vlist<AST.Expr>(ctx._args);
     return new AST.IndexLHS(obj, args).$(ctx);
   }
 
@@ -522,7 +523,9 @@ export class CWScriptASTBuilderVisitor
 
   visitIndexExpr(ctx: IndexExprContext): AST.IndexExpr {
     const obj = this.visit(ctx.expr()) as AST.Expr;
-    const args = this.vlist<AST.Arg>(ctx._args);
+    const args = new AST.List<AST.Arg>(
+      ctx._args.map((arg) => this.visitArg(arg))
+    );
     return new AST.IndexExpr(obj, args).$(ctx);
   }
 
@@ -538,17 +541,27 @@ export class CWScriptASTBuilderVisitor
     return new AST.DColonExpr(obj, ident).$(ctx);
   }
 
+  visitArg(ctx: ArgContext): AST.Arg {
+    const value = this.visit(ctx._value) as AST.Expr;
+    const name = ctx._name ? this.visitIdent(ctx._name) : null;
+    return new AST.Arg(name, value).$(ctx);
+  }
+
   visitFnCallExpr(ctx: FnCallExprContext): AST.FnCallExpr {
     const func = this.visit(ctx.expr()) as AST.Expr;
     const fallible = !!ctx._fallible;
-    const args = this.vlist<AST.Arg>(ctx._args);
+    const args = new AST.List<AST.Arg>(
+      ctx._args.map((arg) => this.visitArg(arg))
+    );
     return new AST.FnCallExpr(func, fallible, args).$(ctx);
   }
 
   visitTypeFnCallExpr(ctx: TypeFnCallExprContext): AST.FnCallExpr {
     const func = this.visit(ctx.typeExpr()) as AST.TypeExpr;
     const fallible = !!ctx._fallible;
-    const args = this.vlist<AST.Arg>(ctx._args);
+    const args = new AST.List<AST.Arg>(
+      ctx._args.map((arg) => this.visitArg(arg))
+    );
     return new AST.FnCallExpr(func, fallible, args).$(ctx);
   }
 
@@ -592,10 +605,10 @@ export class CWScriptASTBuilderVisitor
     return new AST.IsExpr(negative, lhs, rhs).$(ctx);
   }
 
-  visitInExpr(ctx: InExprContext): AST.BinOpExpr {
+  visitInExpr(ctx: InExprContext): AST.InExpr {
     const lhs = this.visit(ctx.expr()[0]) as AST.Expr;
     const rhs = this.visit(ctx._rhs) as AST.Expr;
-    return new AST.BinOpExpr(lhs, AST.Op.IN, rhs).$(ctx);
+    return new AST.InExpr(lhs, rhs).$(ctx);
   }
 
   visitShortTryExpr(ctx: ShortTryExprContext): AST.TryCatchElseExpr {

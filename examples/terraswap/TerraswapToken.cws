@@ -110,17 +110,20 @@ contract TerraswapToken implements CW20 {
   // notice that this function ends in a ! -- this is actually part of the
   // function name in CWScript (TerraswapToken.validate_accounts does not exist)
   // you need to call it like this: validate_accounts!(...)
-  fn validate_accounts!(accounts: CW20Coin[]) {
-    let addresses = accounts.map(|c| c.address).sort().dedup()
-    if addresses.len() != accounts.len() {
-      fail! DuplicateInitialBalanceAddresses();
-    }
+  fn validate_accounts!(accounts: CW20.Coin[]) {
+    let addresses = [];
+  	for { address } in accounts {
+  	  if (address in addresses) {
+  	    fail! DuplicateInitialBalanceAddress(address);
+  	  }
+  	  addresses.push(address)
+  	}
   }
 
   // we can access the special $-message context variables in a function by
   // passing it in. it must be the first argument of the function you are
   // defining.
-  fn create_accounts!(accounts: CW20.Coin[]) -> Int {
+  fn create_accounts!($state, accounts: CW20.Coin[]) -> Int {
     let total_supply = 0
     for row in accounts {
       let addr = Address!(row.address)
@@ -141,9 +144,8 @@ contract TerraswapToken implements CW20 {
     initial_balances: CW20.Coin[], // we use the fully qualified type here
     mint?: MinterData // MinterResponse is loaded in because we are implementing the type
   ) {
-    validate_accounts!(accounts) // usage of validate_accounts! function
-                                                                              let total_supply = create_accounts!($, initial_balances) // need to use mut $
-                                        // which gives us a mutable context
+    validate_accounts!(initial_balances) // usage of validate_accounts! function
+    let total_supply = create_accounts!($state, initial_balances)
 
     // mint?.cap? <- let's break this down
     // mint?. <- this means if "mint" is None, then the result of the expression is "None",

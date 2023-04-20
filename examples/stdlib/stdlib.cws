@@ -1,0 +1,28 @@
+impl<T> for T[] {
+	fn<T> map(self, f: (item: T) -> U) -> U[] {
+		let result: U[] = [];
+		for item in self {
+			result.push(f(item));
+		}
+		result
+	}
+
+	fn<U> map!(self, f: !(item: T) -> U) -> U[] {
+		let result: U[] = [];
+		for item in self {
+			result.push(f!(item));
+		}
+		result
+	}
+
+	fn push(self, item: T) {
+		self[self.len()] = item;
+	}
+
+	fn pop() -> T {
+		let len = self.len();
+		let item = self[len - 1];
+		self[len];
+		item
+	}
+}

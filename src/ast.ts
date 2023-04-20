@@ -628,6 +628,12 @@ export class IsExpr extends AST {
   }
 }
 
+export class InExpr extends AST {
+  constructor(public lhs: Expr, public rhs: Expr) {
+    super();
+  }
+}
+
 export class NoneCheckExpr extends AST {
   constructor(public expr: Expr) {
     super();
@@ -753,7 +759,7 @@ export class OptionT extends AST {
 }
 
 export class ListT extends AST {
-  constructor(public ty: TypeExpr, public size: number | null) {
+  constructor(public ty: TypeExpr, public len: number | null) {
     super();
   }
 }
