@@ -606,14 +606,22 @@ export enum Op {
   MUL = '*',
   DIV = '/',
   MOD = '%',
-  IN = 'in',
-  IS = 'is',
-  AND = 'and',
-  OR = 'or',
 }
 
 export class BinOpExpr extends AST {
   constructor(public lhs: Expr, public op: Op, public rhs: Expr) {
+    super();
+  }
+}
+
+export class AndExpr extends AST {
+  constructor(public lhs: Expr, public rhs: Expr) {
+    super();
+  }
+}
+
+export class OrExpr extends AST {
+  constructor(public lhs: Expr, public rhs: Expr) {
     super();
   }
 }
@@ -808,6 +816,7 @@ export class NoneLit extends Literal {
 }
 
 export type Stmt =
+  | DebugStmt
   | LetStmt
   | ConstStmt
   | AssignStmt
@@ -820,6 +829,12 @@ export type Stmt =
   | ReturnStmt
   | FailStmt
   | Expr;
+
+export class DebugStmt extends AST {
+  constructor(public stmts: Stmt[]) {
+    super();
+  }
+}
 
 export class ExecStmt extends AST {
   constructor(public expr: Expr, public options: List<MemberVal> | null) {

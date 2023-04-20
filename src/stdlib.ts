@@ -1,5 +1,6 @@
 import * as AST from './ast';
 import { SymbolTable } from './util/symbol-table';
+import { CWScriptInterpreter } from 'interpreter';
 
 export type TyConstructor<D extends Data<any> | Impl<any>> = new (
   ...args: any[]
@@ -36,6 +37,14 @@ export type GetV<T extends Type, D extends Data | Impl> = D extends Data<
   ? Y
   : never;
 
+export class Failure {
+  constructor(public error: Value<CWSString | ErrorMsg>) {}
+}
+
+export class Return {
+  constructor(public value: Value) {}
+}
+
 export class Type<D extends Data | Impl = Data | Impl> extends SymbolTable {
   constructor(public name: string) {
     super();
@@ -66,17 +75,48 @@ export class Type<D extends Data | Impl = Data | Impl> extends SymbolTable {
     this.setSymbol(symbolName, new TypeMethod(name, fallible, ps, ret, call));
   }
 
+  inheritMethodsFrom(other: Type) {
+    for (let name in other.symbols) {
+      let symbol = other.getSymbol(name);
+      if (symbol instanceof TypeMethod) {
+        this.setSymbol(name, symbol);
+      }
+    }
+  }
+
+  tryFromVal(val: Value): GetV<this, D> | Failure {
+    try {
+      return this.fromVal(val);
+    } catch (e) {
+      return new Failure(
+        Err_TypeError.make({
+          message: StringT.value(
+            `Cannot convert ${val.ty.name} to ${this.name}`
+          ),
+        })
+      );
+    }
+  }
+
+  fromVal(val: Value): GetV<this, D> {
+    throw new Error(`Cannot convert ${val.ty.name} to ${this.name}`);
+  }
+
+  defaultValue(): GetV<this, D> {
+    return this.value(undefined);
+  }
+
   /**
    * Checks if this <: other, i.e. if this can be converted to
    * other without losing information.
    */
 
   isSubOf(other: Type): boolean {
-    return this.isEq(other);
+    return other === AnyT || this.isEq(other);
   }
 
   isSuperOf(other: Type): boolean {
-    return this.isEq(other) || other.isSubOf(this);
+    return other === AnyT || this.isEq(other) || other.isSubOf(this);
   }
 
   isEq(other: Type): other is this {
@@ -90,31 +130,6 @@ export class Type<D extends Data | Impl = Data | Impl> extends SymbolTable {
 
   value(data: any): GetV<this, D> {
     return new Value(this, data) as any;
-  }
-
-  convertFrom<F extends Type>(val: Value<F>): GetV<this, D> {
-    throw new Error(`Method not implemented.`);
-  }
-
-  convertInto<T extends Type>(into: T, val: Value<this>): Value<T> {
-    if (!this.canConvertInto(into)) {
-      throw new Error(`cannot convert ${this.name} into ${into.name}`);
-    }
-    return into.convertFrom(val as Value<this>) as Value<T>;
-  }
-
-  convertibleFromTypes?(): Type[];
-
-  canConvertFrom(other: Type): boolean {
-    if (this.convertibleFromTypes) {
-      return this.convertibleFromTypes().includes(other);
-    } else {
-      return other.canConvertInto(this);
-    }
-  }
-
-  canConvertInto(other: Type): boolean {
-    return other.canConvertFrom(this);
   }
 
   [operator(AST.Op.EQ)](lhs: Value<this>, rhs: Value<Type>): Value<CWSBool> {
@@ -196,6 +211,10 @@ export class Value<
     return this.ty.isEq(ty);
   }
 
+  isInstanceOf<T1 extends Type>(ty: T1): this is Value<T1> {
+    return this.ty.isSubOf(ty);
+  }
+
   isOfTypeClass<D1 extends Data | Impl, C extends TyConstructor<D1>>(
     tyc: C
   ): this is Value<InstanceType<C>> {
@@ -217,7 +236,9 @@ export class Param extends SymbolTable {
   }
 }
 
-export class OptionT<T extends Type = any> extends Type<Data<any>> {
+export class OptionT<T extends Type = any> extends Type<
+  Impl<Value<CWSNone>> | Impl<Value<T>>
+> {
   constructor(public inner: T) {
     super(`${inner.name}?`);
   }
@@ -233,33 +254,17 @@ export class OptionT<T extends Type = any> extends Type<Data<any>> {
     return other instanceof OptionT && this.inner.isEq(other.inner);
   }
 
-  convertFrom<F extends Type>(val: Value<F>): Value<this> {
-    throw new Error('Method not implemented.');
-    if (val.isOfTypeClass(OptionT)) {
-      return this.value(val.data);
-    } else if (val.isOfType(NoneT)) {
-      return this.value(null);
-    } else {
-      throw new Error(`cannot convert ${val.ty.name} into ${this.name}`);
-    }
+  defaultValue(): GetV<this, Impl<Value<CWSNone>> | Impl<Value<T>>> {
+    return this.value(None);
   }
 
-  value(data: any): Value<this> {
-    // TODO: replace null with CWSNone
-    if (data === null) {
-      return new Value(this, null);
+  value(data: any): GetV<this, Impl<Value<CWSNone>> | Impl<Value<T>>> {
+    if (data.isOfType(NoneT)) {
+      return new Value(this, None);
+    } else if (data.isInstanceOf(this.inner)) {
+      return new Value(this, data);
     } else {
-      return new Value(this, this.inner.value(data));
-    }
-  }
-
-  canConvertFrom(other: Type): boolean {
-    if (other instanceof OptionT) {
-      return this.inner.canConvertFrom(other.inner);
-    } else if (other.isEq(NoneT)) {
-      return true;
-    } else {
-      return super.canConvertFrom(other);
+      throw new Error(`cannot convert ${data.ty.name} into ${this.name}`);
     }
   }
 }
@@ -292,12 +297,12 @@ export class TupleT extends Type<Impl<TupleInstance>> {
     }
   }
 
-  convertFrom<F extends Type>(val: Value<F>): TupleInstance {
-    throw new Error('Method not implemented.');
-  }
-
   value(data: Value[]): TupleInstance {
     return new TupleInstance(this, data);
+  }
+
+  defaultValue(): GetV<this, Impl<TupleInstance>> {
+    return this.value(this.tys.map((x) => x.defaultValue()));
   }
 }
 
@@ -327,12 +332,12 @@ export class ListT<T extends Type = Type> extends Type<Impl<ListInstance<T>>> {
     );
   }
 
-  convertFrom<F extends Type>(val: Value<F>): ListInstance<T> {
-    throw new Error('Method not implemented.');
-  }
-
   value(data: Value<T>[]): ListInstance<T> {
     return new ListInstance(this, data);
+  }
+
+  defaultValue(): ListInstance<T> {
+    return this.value([]);
   }
 
   isEq(other: Type): other is this {
@@ -350,12 +355,16 @@ export class ListT<T extends Type = Type> extends Type<Impl<ListInstance<T>>> {
 export interface Indexable<T extends Type = Type> {
   getIndex(args: Arg[]): Value<T>;
   setIndex(args: Arg[], val: Value<T>): void;
+  removeIndex?(args: Arg[]): void;
+}
+
+export interface Sized {
   getSize(): number;
 }
 
-export class IndexableIter<T extends Type = Type> implements CWSIter<T> {
+export class SizedIndexableIter<T extends Type = Type> implements CWSIter<T> {
   public ix: number = 0;
-  constructor(public parent: Indexable<T>) {}
+  constructor(public parent: Indexable<T> & Sized) {}
 
   next(): Value<T> | undefined {
     if (this.ix >= this.parent.getSize()) {
@@ -373,9 +382,9 @@ export interface CWSIterable<T extends Type = Type> {
   getIter(): CWSIter<T>;
 }
 
-export class IndexableValue<T extends Type = Type, V extends Type = Type>
+export class SizedIndexableValue<T extends Type = Type, V extends Type = Type>
   extends Value<T>
-  implements Indexable<V>, CWSIterable<V>
+  implements Indexable<V>, CWSIterable<V>, Sized
 {
   constructor(public ty: T, public items: Value<V>[]) {
     super(ty, undefined);
@@ -429,35 +438,37 @@ export class IndexableValue<T extends Type = Type, V extends Type = Type>
   }
 
   getIter(): CWSIter<V> {
-    return new IndexableIter(this);
+    return new SizedIndexableIter(this);
   }
 
   operatorIn(val: Value): boolean {
+    console.log(this.items);
+    console.log(val);
+    this.items.some((x) => {
+      console.log(x);
+      console.log(val);
+    });
     return this.items.some((x) => x.equals(val));
   }
 
   equals(other: Value): boolean {
     return (
-      other instanceof IndexableValue &&
+      other instanceof SizedIndexableValue &&
       this.items.every((x, i) => x.equals(other.items[i]))
     );
   }
 }
 
-export class ListInstance<T extends Type = Type> extends IndexableValue<
+export class ListInstance<T extends Type = Type> extends SizedIndexableValue<
   ListT<T>,
   T
 > {
   constructor(ty: ListT<T>, items: Value<T>[]) {
     super(ty, items);
   }
-
-  push(val: Value<T>) {
-    this.items.push(val);
-  }
 }
 
-export class TupleInstance extends IndexableValue<TupleT> {}
+export class TupleInstance extends SizedIndexableValue<TupleT> {}
 
 export class CWSAny extends Type<Data<any>> {
   public static TYPE: CWSAny = new CWSAny();
@@ -468,10 +479,6 @@ export class CWSAny extends Type<Data<any>> {
 
   value(data: any): Value<this, any> {
     return data;
-  }
-
-  convertFrom<O extends Type>(other: Value<O>): Value<this, any> {
-    throw new Error('Method not implemented.');
   }
 
   isSubOf<T extends Type>(other: T): boolean {
@@ -493,21 +500,12 @@ export class CWSNone extends Type<Data<null>> {
     super('None');
   }
 
-  value(data?: any): Value<this, null> {
-    return new Value(this, null);
+  value(data: any): Value<this, null> {
+    return CWSNone.NONE as any;
   }
 
-  convertFrom<O extends Type>(other: Value<O>): Value<this, null> {
-    if (!other.isOfType(NoneT)) {
-      // @ts-ignore
-      throw new Error(`Cannot convert ${other.ty.name} to None`);
-    } else {
-      return new Value(this, null);
-    }
-  }
-
-  convertibleFromTypes(): Type[] {
-    return [CWSNone.TYPE];
+  defaultValue(): Value<this, null> {
+    return CWSNone.NONE as any;
   }
 
   isSubOf<T extends Type>(other: T): boolean {
@@ -537,15 +535,12 @@ export class CWSBool extends Type<Data<boolean>> {
     return !CWSBool.isTrue(val);
   }
 
-  convertFrom<O extends Type>(other: Value<O>): Value<this, boolean> {
-    throw new Error('Method not implemented.');
-    if (other.isOfType(IntT)) {
-      return new Value(this, other.data !== BigInt(0));
-    } else if (other.isOfType(CWSBool.TYPE)) {
-      return new Value(this, other.data);
-    } else {
-      throw new Error(`Cannot convert ${other.ty.name} to Bool`);
-    }
+  value(data: boolean): Value<this, boolean> {
+    return (data ? CWSBool.TRUE : CWSBool.FALSE) as any;
+  }
+
+  defaultValue(): Value<this, boolean> {
+    return CWSBool.FALSE as any;
   }
 }
 
@@ -554,13 +549,9 @@ export const BoolT = CWSBool.TYPE;
 //endregion <INODES:TYPES>
 
 //region <INODES:DEFINITIONS>
-export class ContractDefn extends Type<Impl<ContractInstance>> {
+export class ContractDefn extends Type<Impl<ContractReference>> {
   constructor(public name: string) {
     super(name);
-  }
-
-  convertFrom<F extends Type>(other: Value<F>): ContractInstance<this> {
-    throw new Error('Method not implemented.');
   }
 
   instantiate(args: Arg[]): Value<InstantiateMsg> {
@@ -575,14 +566,19 @@ export class ContractDefn extends Type<Impl<ContractInstance>> {
     return this.getSymbol<QueryMsg>('query#' + fnName).value(args);
   }
 
-  value(data: Value): ContractInstance<this> {
+  value(data: Value): ContractReference<this> {
     if (data.isOfType(AddressT)) {
-      return new ContractInstance(this, data.data);
+      return new ContractReference(this, data.data);
     } else {
       throw new Error(`Cannot convert ${data.ty.name} to ContractInstance`);
     }
   }
+
+  defaultValue(): ContractReference<this> {
+    throw new Error('Cannot get default value for ContractInstance');
+  }
 }
+
 export class InterfaceDefn extends SymbolTable {
   constructor(public name: string) {
     super();
@@ -596,7 +592,7 @@ export class MapKey extends SymbolTable {
 }
 
 export class StateItem extends SymbolTable {
-  constructor(public key: string, public ty: Type) {
+  constructor(public key: string, public ty: Type, public default_: Value) {
     super();
   }
 }
@@ -605,7 +601,7 @@ export class StateMap extends SymbolTable {
     public prefix: string,
     public mapKeys: MapKey[],
     public ty: Type,
-    public default_?: Value
+    public default_: Value
   ) {
     super();
   }
@@ -622,7 +618,7 @@ export class FnDefn<T extends Type = Type> extends SymbolTable {
     public fallible: boolean,
     public params: Param[],
     public retTy: T | undefined,
-    public body: AST.Block
+    public body: AST.Block = AST.Block.empty()
   ) {
     super();
   }
@@ -681,7 +677,7 @@ export class FnDefn<T extends Type = Type> extends SymbolTable {
       } else {
         p = this.params[i];
       }
-      if (p.ty && !arg.value.isOfType(p.ty) && p.ty !== AnyT) {
+      if (p.ty && !arg.value.ty.isSubOf(p.ty)) {
         throw new Error(
           // @ts-ignore
           `${this.name}: invalid argument type for ${p.name} - expected ${p.ty.name}, got ${arg.value.ty.name}`
@@ -697,15 +693,22 @@ export class FnDefn<T extends Type = Type> extends SymbolTable {
     // 2. there are no unknown named args
     // 3. there are not any missing required args (the ones that don't have a default)
     // 4. all provided args are of the correct type
-    for (let i = 0; i < args.length; i++) {
-      let arg = args[i];
-      let p: Param;
-      if (arg.name !== undefined) {
-        p = this.params.find((x) => x.name === arg.name)!;
+
+    for (let i = 0; i < this.params.length; i++) {
+      // covered all required arguments
+      if (i > args.length - 1) {
+        let p = this.params[i];
+        scope.setSymbol(p.name, p.default_);
       } else {
-        p = this.params[i];
+        let arg = args[i];
+        let p: Param;
+        if (arg.name !== undefined) {
+          p = this.params.find((x) => x.name === arg.name)!;
+        } else {
+          p = this.params[i];
+        }
+        scope.setSymbol(p.name, arg.value);
       }
-      scope.setSymbol(p.name, arg.value);
     }
   }
 }
@@ -746,7 +749,7 @@ export class MethodDefn<
     public retTy: Type,
     public call: (self: S, ...args: Value[]) => Value<R>
   ) {
-    super(name, fallible, params, retTy, AST.List.empty());
+    super(name, fallible, params, retTy);
   }
 }
 
@@ -773,15 +776,22 @@ export class StructDefn extends Type<Impl<StructInstance>> {
     );
   }
 
-  convertFrom<F extends Type>(val: Value<F>): StructInstance<this> {
-    throw new Error('Method not implemented.');
-  }
-
   value(args: Arg[]): StructInstance<this> {
     this.structFn.validateArgs(args);
     let instance = new StructInstance(this, undefined);
     this.structFn.setArgsInScope(instance, args);
     return instance;
+  }
+
+  make(args: { [k: string]: Value }): StructInstance<this> {
+    let argsList = Object.keys(args).map((name) => arg(args[name], name));
+    return this.value(argsList);
+  }
+
+  defaultValue(): GetV<this, Impl<StructInstance>> {
+    return this.value(
+      this.params.map((p) => arg(p.ty!.defaultValue(), p.name))
+    );
   }
 }
 
@@ -809,9 +819,6 @@ export class EnumDefn extends Type<Impl<Value>> {
       })
     );
   }
-  convertFrom<F extends Type>(val: Value<F>): any {
-    throw new Error('Method not implemented.');
-  }
 
   isSuperOf<T extends Type>(other: T): boolean {
     if (
@@ -836,6 +843,10 @@ export class EnumDefn extends Type<Impl<Value>> {
     this.variants[name] = defn;
     this.setSymbol('#' + name, defn);
     return defn;
+  }
+
+  defaultValue(): GetV<this, Impl<Value>> {
+    throw new Error(`EnumDefn ${this.name} has no default value`);
   }
 }
 
@@ -946,13 +957,14 @@ export class Arg extends SymbolTable {
   }
 }
 
-export class ContractInstance<
+export class ContractReference<
   C extends ContractDefn = ContractDefn
 > extends Value<ContractDefn, null> {
   constructor(public ty: ContractDefn, public address: Value<CWSAddress>) {
     super(ty, null);
   }
 }
+
 export class StructInstance<
   T extends StructDefn = StructDefn
 > extends Value<T> {}
@@ -989,11 +1001,8 @@ export class CWSString extends Type<Data<string>> {
     super('String');
   }
 
-  convertFrom<F extends Type>(val: Value<F>): Value<this, string> {
-    if (val.isOfType(IntT) || val.isOfTypeClass(CWSUnsignedInt)) {
-      return this.value(val.data.toString());
-    }
-    throw new Error('Cannot convert from ' + val.ty.name);
+  defaultValue(): GetV<this, Data<string>> {
+    return this.value('');
   }
 }
 
@@ -1002,9 +1011,23 @@ export class CWSAddress extends Type<Data<string>> {
   static TYPE = new CWSAddress();
   constructor() {
     super('Address');
+    this.inheritMethodsFrom(StringT);
   }
+
   isSubOf(other: Type): boolean {
     return other.isEq(StringT) || super.isSubOf(other);
+  }
+
+  defaultValue(): GetV<this, Data<string>> {
+    throw new Error(`Cannot get default value for ${this.name} type`);
+  }
+
+  tryFromVal(val: Value): Value<this, string> {
+    if (val.isInstanceOf(StringT)) {
+      return this.value(val.data);
+    } else {
+      throw new Error(`Cannot convert ${val.ty.name} to ${this.name}`);
+    }
   }
 }
 
@@ -1041,6 +1064,11 @@ export class CWSInt extends Type<Data<bigint>> {
   constructor() {
     super('Int');
   }
+
+  defaultValue(): GetV<this, Data<bigint>> {
+    return this.value(BigInt(0));
+  }
+
   // [operator(AST.Op.PLUS)](lhs_: Data<Int>, rhs_: Data) {
   //   let lhs = cast(this, lhs_);
   //   let rhs = this.cast(rhs_);
@@ -1084,38 +1112,123 @@ export class CWSInt extends Type<Data<bigint>> {
   //   let rhs = this.cast(rhs_);
   //   return Bool.TYPE.value(lhs.data === rhs.data);
   // }
-
-  convertFrom<O extends Type>(other: Value<O>): Value<this, bigint> {
-    throw new Error('Method not implemented.');
-  }
 }
 
 export const IntT = CWSInt.TYPE;
 
+export const UINT_MAX: { [k: string]: bigint } = {
+  U128: BigInt(2) ** BigInt(128) - BigInt(1),
+  U64: BigInt(2) ** BigInt(64) - BigInt(1),
+  U32: BigInt(2 ** 32 - 1),
+  U16: BigInt(2 ** 16 - 1),
+  U8: BigInt(2 ** 8 - 1),
+};
+
+export const MAX_64 = BigInt(2) ** BigInt(64) - BigInt(1);
+export const MAX_32 = BigInt(2 ** 32 - 1);
+export const MAX_16 = BigInt(2 ** 16 - 1);
+export const MAX_8 = BigInt(2 ** 8 - 1);
+
 export class CWSUnsignedInt extends Type<Data<bigint>> {
-  constructor(size: IntSize) {
-    super('U' + size.toString());
+  public MAX: ValueOf<CWSInt>;
+
+  constructor(public size: IntSize) {
+    let name = 'U' + size.toString();
+    super(name);
+    this.MAX = IntT.value(UINT_MAX[name]);
+    this.setSymbol('MAX', this.MAX);
+  }
+
+  defaultValue(): GetV<this, Data<bigint>> {
+    return this.value(BigInt(0));
   }
 
   isSubOf(other: Type): boolean {
     return other.isEq(IntT) || super.isSubOf(other);
   }
 
-  value(data: any): Value<this, bigint> {
-    if (typeof data === 'bigint') {
-      return new Value(this, data);
-    } else if (typeof data === 'number') {
-      return new Value(this, BigInt(data));
+  tryFromVal(val: Value): GetV<this, Data<bigint>> | Failure {
+    if (val.isInstanceOf(IntT)) {
+      // check that the value is in range
+      if (val.data < BigInt(0)) {
+        return new Failure(
+          Err_TypeError.make({
+            message: StringT.value(
+              `Cannot convert negative value to ${this.name}`
+            ),
+          })
+        );
+      }
+      if (val.data > this.MAX.data) {
+        return new Failure(
+          Err_TypeError.make({
+            message: StringT.value(
+              `Cannot convert value ${val.data} to ${this.name}`
+            ),
+          })
+        );
+      }
+      return this.value(val.data);
+    } else if (val.isInstanceOf(StringT)) {
+      let data: bigint;
+      try {
+        data = BigInt(val.data);
+      } catch (e: any) {
+        return new Failure(
+          Err_TypeError.make({
+            message: StringT.value(e.toString()),
+          })
+        );
+      }
+      if (data < BigInt(0)) {
+        return new Failure(
+          Err_TypeError.make({
+            message: StringT.value(
+              `Cannot convert negative value to ${this.name}`
+            ),
+          })
+        );
+      }
+      if (data > this.MAX.data) {
+        return new Failure(
+          Err_TypeError.make({
+            message: StringT.value(
+              `Cannot convert value ${val.data} to ${this.name}`
+            ),
+          })
+        );
+      }
+      return this.value(data);
     } else {
-      throw new Error(`Cannot convert ${typeof data} to ${this.name}!`);
+      return new Failure(
+        Err_TypeError.make({
+          message: StringT.value(
+            // @ts-ignore
+            `Cannot convert ${val.ty.name} to ${this.name}`
+          ),
+        })
+      );
     }
   }
 
-  convertFrom<F extends Type>(val: Value<F>): Value<this, bigint> {
-    if (val.isOfType(StringT)) {
-      return this.value(BigInt(val.data));
+  fromVal(val: Value): GetV<this, Data<bigint>> {
+    let res = this.tryFromVal(val);
+    if (res instanceof Failure) {
+      throw res.error;
     }
-    throw new Error(`Cannot convert ${(val as any).ty.name} to ${this.name}!`);
+    return res;
+  }
+
+  value(data: any): Value<this, bigint> {
+    if (
+      typeof data === 'bigint' ||
+      typeof data === 'number' ||
+      typeof data === 'string'
+    ) {
+      return new Value(this, BigInt(data));
+    } else {
+      throw new Error(`Cannot convert ${typeof data} to ${this.name}`);
+    }
   }
 }
 
@@ -1129,8 +1242,45 @@ export const Err_Generic = new ErrorMsg('StringError', [
   new Param('message', StringT),
 ]);
 
+export const Err_TypeError = new ErrorMsg('TypeError', [
+  new Param('message', StringT),
+]);
+
 export const NoneT = CWSNone.TYPE;
 export const None = CWSNone.NONE;
+
+export const CoinT = new StructDefn('Coin', [
+  new Param('denom', StringT),
+  new Param('amount', IntT),
+]);
+
+export const CoinList = new ListT(CoinT);
+
+export const CtxEnvBlockInfoT = new StructDefn('BlockInfo', [
+  new Param('height', IntT),
+  new Param('time', IntT),
+  new Param('chain_id', StringT),
+]);
+
+export const CtxEnvContractInfoT = new StructDefn('ContractInfo', [
+  new Param('address', AddressT),
+]);
+
+export const CtxEnvT = new StructDefn('$env', [
+  new Param('block', CtxEnvBlockInfoT),
+  new Param('contract', CtxEnvContractInfoT),
+]);
+
+export const CtxInfoT = new StructDefn('$info', [
+  new Param('sender', AddressT),
+  new Param('funds', new ListT(CoinT)),
+]);
+
+export const CtxResT = new StructDefn('$res', [
+  new Param('messages', new ListT(AnyT)),
+  new Param('events', new ListT(AnyT)),
+  new Param('data', new OptionT(BinaryT)),
+]);
 
 export const STDLIB = {
   None,

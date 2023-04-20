@@ -1,6 +1,7 @@
 lexer grammar CWScriptLexer;
 
 // KEYWORDS
+DEBUG: 'debug!';
 CONTRACT: 'contract';
 INTERFACE: 'interface';
 IMPORT: 'import';

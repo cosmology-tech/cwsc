@@ -23,6 +23,18 @@ export class SymbolTable {
     throw new Error(`symbol ${name} not found`);
   }
 
+  getOwnSymbol<T = any>(name: string): T {
+    if (name in this.symbols) {
+      return this.symbols[name];
+    }
+
+    if (name + '#!' in this.symbols) {
+      return this.symbols[name + '#!'];
+    }
+
+    throw new Error(`symbol ${name} not found`);
+  }
+
   setSymbol(name: string, value: any) {
     this.symbols[name] = value;
   }

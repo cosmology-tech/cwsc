@@ -16,7 +16,7 @@ import {
   StringT,
   InterfaceDefn,
   ContractDefn,
-  ContractInstance,
+  ContractReference,
   StructDefn,
   EnumDefn,
   ListT,
@@ -39,9 +39,18 @@ import {
   TupleInstance,
   EnumVariantUnitDefn,
   DecT,
-  IndexableValue,
+  SizedIndexableValue,
   MethodDefn,
   AnyT,
+  CWSAddress,
+  InstantiateMsg,
+  CtxEnvBlockInfoT,
+  CtxEnvContractInfoT,
+  CtxEnvT,
+  CoinT,
+  CtxInfoT,
+  CtxResT,
+  BoolT,
 } from './stdlib';
 
 //region <HELPER FUNCTIONS>
@@ -81,6 +90,232 @@ export interface CWScriptInterpreterContext {
   };
 }
 
+export enum ContextType {
+  INSTANTIATE,
+  EXEC,
+  QUERY,
+}
+
+export interface Env {
+  block: {
+    height: number;
+    time: number;
+    chain_id: string;
+  };
+
+  contract: {
+    address: string;
+  };
+}
+
+export interface MessageInfo {
+  sender: string;
+  funds: Array<{
+    denom: string;
+    amount: string;
+  }>;
+}
+
+export function buildCtxEnv(env: Env) {
+  return CtxEnvT.make({
+    block: CtxEnvBlockInfoT.make({
+      height: IntT.value(BigInt(env.block.height)),
+      time: IntT.value(BigInt(env.block.time)),
+      chain_id: StringT.value(env.block.chain_id),
+    }),
+    contract: CtxEnvContractInfoT.make({
+      address: AddressT.value(env.contract.address),
+    }),
+  });
+}
+
+export const CoinListT = new ListT(CoinT);
+
+export function buildCtxInfo(info: MessageInfo) {
+  return CtxInfoT.make({
+    sender: AddressT.value(info.sender),
+    funds: CoinListT.value(
+      info.funds.map((fund) =>
+        CoinT.make({
+          denom: StringT.value(fund.denom),
+          amount: IntT.value(BigInt(fund.amount)),
+        })
+      )
+    ),
+  });
+}
+
+export function buildCtxRes() {
+  return CtxResT.make({
+    messages: new ListT(AnyT).value([]),
+    events: new ListT(AnyT).value([]),
+    data: None,
+  });
+}
+
+export function buildMutState(contract: ContractDefn) {
+  contract.getSymbol('#state');
+}
+
+export function buildMutCtx(
+  contract: ContractDefn,
+  state: any,
+  env: Env,
+  info: MessageInfo
+): SymbolTable {
+  let ctx = new SymbolTable();
+  ctx.setSymbol('$', contract);
+  ctx.setSymbol('$state', state);
+  ctx.setSymbol('$env', buildCtxEnv(env));
+  ctx.setSymbol('$info', buildCtxInfo(info));
+  ctx.setSymbol('$res', buildCtxRes());
+  return ctx;
+}
+
+export function buildQueryCtx(contract: ContractDefn, state: any, env: Env) {
+  let ctx = new SymbolTable();
+  ctx.setSymbol('$', contract);
+  ctx.setSymbol('$state', state);
+  ctx.setSymbol('$env', buildCtxEnv(env));
+  return ctx;
+}
+
+export class StateMapAccessor extends Value implements Indexable {
+  public prefix: string;
+  public mapKeys: MapKey[];
+  public ty: Type;
+  public default_: Value;
+
+  constructor(public state: ContractState, public mapDefn: StateMap) {
+    super(ContractStateT, null);
+    this.prefix = mapDefn.prefix;
+    this.mapKeys = mapDefn.mapKeys;
+    this.ty = mapDefn.ty;
+    this.default_ = mapDefn.default_;
+  }
+
+  getIndex(args: Arg[]): Value {
+    let key = this.buildKey(args);
+    return this.state.symbols.get(key, this.default_);
+  }
+  setIndex(args: Arg[], val: Value) {
+    let key = this.buildKey(args);
+    this.state.symbols[key] = val;
+  }
+
+  removeIndex(args: Arg[]) {
+    let key = this.buildKey(args);
+    this.state.symbols[key].delete(key);
+  }
+
+  buildKey(args: Arg[]): string {
+    if (args.length !== this.mapKeys.length) {
+      throw new Error(
+        `Invalid number of index arguments for map '${this.prefix}'`
+      );
+    }
+
+    let keySegments = [this.prefix];
+    for (let i = 0; i < args.length; i++) {
+      if (!args[i].value.isInstanceOf(this.mapKeys[i].ty)) {
+        let keyNameHint = this.mapKeys[i].name
+          ? `(${this.mapKeys[i].name})`
+          : '';
+        throw new Error(
+          `Invalid index argument for map '${this.prefix}' key #${i} ${keyNameHint} - expected ${this.mapKeys[i].ty} but got ${args[i].value}`
+        );
+      }
+      // TODO: this is a hack to get around the fact that we don't have a way to
+      // serialize a value to a string. We should probably add a method to the
+      // Value interface for this.
+      keySegments.push(`#${i}:${args[i].value.toString()}#`);
+    }
+    return keySegments.join(`#`);
+  }
+}
+
+export const ContractStateT = Type.makeUnitT('ContractState');
+
+export class ContractState extends Value {
+  public stateInfo: {
+    [key: string]: StateItem | StateMap;
+  } = {};
+
+  constructor(
+    public interpreter: CWScriptInterpreter,
+    public contract: ContractDefn
+  ) {
+    // get all the state items and state maps
+    // if we have item, it can be accessed directly
+    // if we have a map, we need to access it via index
+    super(ContractStateT, null);
+    Object.values(contract.symbols).map((sym) => {
+      if (sym instanceof StateItem) {
+        this.stateInfo[sym.key] = sym;
+      }
+      if (sym instanceof StateMap) {
+        this.stateInfo[sym.prefix] = sym;
+      }
+    });
+  }
+
+  getSymbol<T = any>(name: string): T {
+    return this.getOwnSymbol(name);
+  }
+
+  getOwnSymbol<T = any>(name: string): T {
+    if (!(name in this.stateInfo)) {
+      throw new Error(
+        `Contract ${this.contract.name} has no state variable ${name}`
+      );
+    }
+    let s = this.stateInfo[name];
+    if (s instanceof StateItem) {
+      return this.symbols[name] || s.ty.defaultValue();
+    } else {
+      return new StateMapAccessor(this, s) as any;
+    }
+  }
+
+  firstTableWithSymbol(name: string): SymbolTable | undefined {
+    if (name in this.stateInfo) {
+      return this;
+    }
+
+    return undefined;
+  }
+}
+
+export class ContractInstance<
+  C extends ContractDefn = ContractDefn
+> extends Value<C, null> {
+  public state: ContractState;
+  constructor(public interpreter: CWScriptInterpreter, public ty: C) {
+    super(ty, null);
+    this.state = new ContractState(interpreter, ty);
+  }
+
+  instantiate(env: Env, info: MessageInfo, args: Arg[]) {
+    let context = buildMutCtx(this.ty, this.state, env, info);
+    let impl = this.ty.getSymbol<FnDefn>('#instantiate#impl');
+    this.interpreter.callFn(impl, args, context);
+    return context.getSymbol('$res');
+  }
+
+  exec(env: Env, info: MessageInfo, name: string, args: Arg[]) {
+    let context = buildMutCtx(this.ty, this.state, env, info);
+    let impl = this.ty.getSymbol<FnDefn>(`#exec${name}#impl`);
+    this.interpreter.callFn(impl, args, context);
+    return context.getSymbol('$res');
+  }
+
+  query(env: Env, name: string, args: Arg[]) {
+    let context = buildQueryCtx(this.ty, this.state, env);
+    let impl = this.ty.getSymbol<FnDefn>(`#query${name}#impl`);
+    return this.interpreter.callFn(impl, args, context);
+  }
+}
+
 export class CWScriptInterpreter extends SymbolTable {
   visitor: CWScriptInterpreterVisitor;
   constructor(public ctx: CWScriptInterpreterContext) {
@@ -91,8 +326,8 @@ export class CWScriptInterpreter extends SymbolTable {
     });
   }
 
-  callFn(fn: FnDefn, args: Arg[]) {
-    return this.visitor.callFn(fn, args);
+  callFn(fn: FnDefn, args: Arg[], scope?: SymbolTable) {
+    return this.visitor.callFn(fn, args, scope);
   }
 }
 
@@ -108,14 +343,41 @@ export class Return {
   constructor(public value: Value) {}
 }
 
+export class DebugCall extends FnDefn {
+  constructor() {
+    super('debug', true, [], NoneT);
+  }
+
+  call(interpreter: CWScriptInterpreter, node?: AST.AST) {
+    debugger;
+  }
+}
+
 export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
   public ctx: any;
-  scope: SymbolTable;
+  scopes: SymbolTable[];
+
+  get scope(): SymbolTable {
+    return this.scopes[this.scopes.length - 1];
+  }
+
+  pushScope(scope: SymbolTable) {
+    this.scopes.push(scope);
+  }
+
+  popScope() {
+    this.scopes.pop();
+  }
 
   constructor(public interpreter: CWScriptInterpreter) {
     super();
-    this.scope = interpreter;
+    this.scopes = [interpreter];
   }
+
+  // visit<T = any>(node: AST.AST) {
+  //   console.log(node.$ctx?.text);
+  //   return super.visit(node);
+  // }
 
   //region <PERVASIVES>
 
@@ -168,10 +430,9 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
 
   //region <TOP-LEVEL STATEMENTS>
   visitInterfaceDefn(node: AST.InterfaceDefn) {
-    let prevScope = this.scope;
     let name = node.name.value;
     let interfaceDefn = this.scope.subscope(new InterfaceDefn(name));
-    this.scope = interfaceDefn;
+    this.pushScope(interfaceDefn);
 
     node.body.children.forEach((x) => {
       if (x instanceof AST.StructDefn) {
@@ -197,14 +458,14 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
       }
     });
 
+    this.popScope();
     this.interpreter.setSymbol(name, interfaceDefn);
-    this.scope = prevScope;
   }
 
   visitContractDefn(node: AST.ContractDefn) {
-    let prevScope = this.scope;
     let name = node.name.value;
-    this.scope = this.scope.subscope(new ContractDefn(name));
+    let contractDefn = this.scope.subscope(new ContractDefn(name));
+    this.pushScope(contractDefn);
 
     node.body.children.forEach((x) => {
       if (x instanceof AST.StructDefn) {
@@ -216,7 +477,6 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
       }
 
       if (x instanceof AST.FnDefn) {
-        console.log('visiting fn defn', x.name!.value);
         let name = x.name!.value;
         if (x.fallible) {
           name += '#!';
@@ -226,23 +486,26 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
 
       if (x instanceof AST.StateDefnBlock) {
         x.descendantsOfType(AST.StateDefnItem).forEach((itemDefn) => {
-          this.scope.setSymbol(
-            'state#' + itemDefn.name.value,
-            new StateItem(itemDefn.name.value, this.visit(itemDefn.ty))
-          );
+          let key = itemDefn.name.value;
+          let ty = this.visitType(itemDefn.ty);
+          let default_ =
+            itemDefn.default_ !== null
+              ? this.visit<Value>(itemDefn.default_!)
+              : ty.defaultValue();
+          let item = new StateItem(key, ty, default_);
+          this.scope.setSymbol('#state#' + key, item);
         });
         x.descendantsOfType(AST.StateDefnMap).forEach((mapDefn) => {
-          this.scope.setSymbol(
-            'state#' + mapDefn.name.value,
-            new StateMap(
-              mapDefn.name.value,
-              mapDefn.mapKeys.map((mk) => this.visit<MapKey>(mk)),
-              this.visitType(mapDefn.ty),
-              mapDefn.default_ !== null
-                ? this.visit(mapDefn.default_)
-                : undefined
-            )
-          );
+          let prefix = mapDefn.name.value;
+          let ty = this.visitType(mapDefn.ty);
+          let mapKeys = mapDefn.mapKeys.map((mk) => this.visit<MapKey>(mk));
+          let default_ =
+            mapDefn.default_ !== null
+              ? this.visit<Value>(mapDefn.default_)
+              : ty.defaultValue();
+          let map = new StateMap(prefix, mapKeys, ty, default_);
+
+          this.scope.setSymbol('#state#' + mapDefn.name.value, map);
         });
       }
 
@@ -272,9 +535,8 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
         this.visitQueryDefn(x);
       }
     });
-
-    this.interpreter.setSymbol(name, this.scope);
-    this.scope = prevScope;
+    this.popScope();
+    this.scope.setSymbol(name, contractDefn);
   }
 
   //endregion <TOP-LEVEL STATEMENTS>
@@ -442,8 +704,21 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
     let res = None;
     for (let stmt of node.children) {
       res = this.visit(stmt);
+      if (res instanceof Return) {
+        return res.value;
+      } else if (res instanceof Failure) {
+        return res;
+      }
     }
     return res;
+  }
+
+  visitDebugStmt(node: AST.DebugStmt) {
+    debugger;
+    for (let stmt of node.stmts) {
+      let a = this.visit(stmt);
+      console.log(a);
+    }
   }
 
   visitLetStmt(node: AST.LetStmt) {
@@ -489,7 +764,7 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
       let tbl = obj.firstTableWithSymbol(member);
       if (tbl === undefined) {
         throw new Error(
-          `tried to assign to non-existent member ${member} of ${obj}`
+          `tried to assign to non-existent member '${member}' of ${obj}`
         );
       } else {
         tbl.setSymbol(member, rhs);
@@ -497,11 +772,17 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
     } else {
       // index assignment
       let obj = this.visit<Value>(node.lhs.obj);
-      if (!obj.isOfTypeClass(ListT) && !obj.isOfTypeClass(TupleT)) {
-        throw new Error(`tried to index into non-indexable type ${obj.ty}`);
-      } else {
+      if (
+        obj.isOfTypeClass(ListT) ||
+        obj.isOfTypeClass(TupleT) ||
+        obj instanceof StateMapAccessor
+      ) {
         let args = node.lhs.args.map((x) => new Arg(this.visit(x)));
-        (obj as unknown as Indexable).setIndex(args, rhs);
+        return (obj as unknown as Indexable).setIndex(args, rhs);
+      } else {
+        throw new Error(
+          `tried to index assign to non-indexable type ${obj.ty}`
+        );
       }
     }
   }
@@ -531,8 +812,7 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
     let iter = expr.getIter();
 
     // make new scope
-    let prevScope = this.scope;
-    this.scope = prevScope.subscope();
+    this.pushScope(this.scope.subscope());
 
     // bindings
     if (node.binding instanceof AST.IdentBinding) {
@@ -573,7 +853,7 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
         this.visit(node.body);
       }
     }
-    this.scope = prevScope;
+    this.popScope();
   }
 
   visitExecStmt(node: AST.ExecStmt) {
@@ -584,8 +864,11 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
       throw new Error(`tried to execute non-exec type ${val.ty.name}`);
     } else {
       let res = this.scope.getSymbol<StructInstance>('$res');
-      let msgs = res.getSymbol<ListInstance<typeof ExecMsgT>>('msgs');
-      this.callFn(msgs.getSymbol<MethodDefn>('push'), args([msgs, val]));
+      let messages = res.getSymbol<ListInstance<typeof ExecMsgT>>('msgs');
+      this.callFn(
+        messages.getSymbol<MethodDefn>('push'),
+        args([messages, val])
+      );
     }
   }
 
@@ -629,12 +912,12 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
           throw new Error(`tried to instantiate non-contract type ${ty}`);
         } else {
           let fn = ty.getSymbol<FnDefn>('#instantiate');
-          let args = node.expr.args.map((x) => new Arg(this.visit(x)));
-          let val = this.callFn(fn, args);
+          let args_ = node.expr.args.map((x) => new Arg(this.visit(x)));
+          let val = this.callFn(fn, args_);
           if (val.ty.isSubOf(InstantiateMsgT)) {
             let res = this.scope.getSymbol<StructInstance>('$res');
-            let msgs = res.getSymbol<ListInstance>('msgs');
-            msgs.push(val);
+            let messages = res.getSymbol<ListInstance>('messages');
+            this.callFn(messages.getSymbol('push'), args([messages, val]));
           } else {
             throw new Error(
               `tried to instantiate non-InstantiateMsg type ${val.ty.name}`
@@ -647,8 +930,9 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
       let val = this.visit<Value>(node.expr);
       if (val.ty.isSubOf(InstantiateMsgT)) {
         let res = this.scope.getSymbol<StructInstance>('$res');
-        let msgs = res.getSymbol<ListInstance<typeof InstantiateMsgT>>('msgs');
-        msgs.push(val);
+        let messages =
+          res.getSymbol<ListInstance<typeof InstantiateMsgT>>('messages');
+        this.callFn(messages.getSymbol('push'), args([messages, val]));
       } else {
         throw new Error(
           `tried to instantiate non-InstantiateMsg type ${val.ty.name}`
@@ -686,9 +970,9 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
   }
 
   visitDotExpr(node: AST.DotExpr) {
-    const obj: any = this.visit(node.obj);
-    if (node.unwrap !== null) {
-      (obj as SymbolTable).getSymbol(node.member.value);
+    const obj: any = this.visit<Value>(node.obj);
+    if (node.unwrap === null) {
+      return (obj as SymbolTable).getSymbol(node.member.value);
     } else if (node.unwrap === AST.UnwrapOp.OR_NONE) {
       if (obj.isOfType(NoneT)) {
         return None;
@@ -724,37 +1008,46 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
     return obj.getSymbol(node.member.value);
   }
 
-  callFn(fn: FnDefn, args: Arg[]) {
-    // save previous scope
-    const prevScope = this.scope; // interpreter
-
+  callFn(fn: FnDefn, args: Arg[], scope?: SymbolTable) {
     // set function definition's parent scope to the intermediate scope
     // create a new scope for the function call
-    this.scope = fn.subscope();
+    this.pushScope(fn.subscope(scope));
     fn.setArgsInScope(this.scope, args);
 
     let result: Value;
     if (fn instanceof MethodDefn) {
-      result = fn.call(args.map((x) => x.value));
+      result = fn.call(args[0].value, ...args.slice(1).map((x) => x.value));
     } else {
       // evaluate the function body in the new scope
       result = this.visit(fn.body);
     }
 
     // reset scope
-    this.scope = prevScope;
+    this.popScope();
     return result;
   }
 
   visitFnCallExpr(node: AST.FnCallExpr) {
-    const args = node.args.map((x) => this.visit<Arg>(x));
     const func = this.visit(node.func);
+    if (func instanceof DebugCall) {
+      return func.call(this.interpreter, node.args);
+    }
+    const args = node.args.map((x) => this.visitArg(x));
     if (func instanceof FnDefn) {
       return this.callFn(func, args);
     } else if (func instanceof StructDefn) {
       return func.value(args);
+    } else if (func instanceof Type) {
+      if (args.length !== 1) {
+        throw new Error(`can only call type with one argument`);
+      }
+      if (node.fallible) {
+        return func.tryFromVal(args[0].value);
+      } else {
+        return func.fromVal(args[0].value);
+      }
     } else {
-      throw new Error(`tried to call non-function: ${func}`);
+      throw new Error(`tried to call non-function: ${func.ty}`);
     }
   }
 
@@ -766,6 +1059,44 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
     const lhs = this.visit(node.lhs);
     const rhs = this.visit(node.rhs);
     return this.executeBinOp(node.op, lhs, rhs);
+  }
+
+  visitAndExpr(node: AST.AndExpr) {
+    const lhs = this.visit(node.lhs);
+    if (lhs.isOfType(BoolT)) {
+      if (lhs === CWSBool.FALSE) {
+        // short-circuit
+        return CWSBool.FALSE;
+      } else {
+        const rhs = this.visit(node.rhs);
+        if (rhs.isOfType(BoolT)) {
+          return rhs;
+        } else {
+          throw new Error(`tried to AND non-boolean: ${rhs}`);
+        }
+      }
+    } else {
+      throw new Error(`tried to AND non-boolean: ${lhs}`);
+    }
+  }
+
+  visitOrExpr(node: AST.OrExpr) {
+    const lhs = this.visit(node.lhs);
+    if (lhs.isOfType(BoolT)) {
+      if (lhs === CWSBool.TRUE) {
+        // short-circuit
+        return CWSBool.TRUE;
+      } else {
+        const rhs = this.visit(node.rhs);
+        if (rhs.isOfType(BoolT)) {
+          return rhs;
+        } else {
+          throw new Error(`tried to OR non-boolean: ${rhs}`);
+        }
+      }
+    } else {
+      throw new Error(`tried to OR non-boolean: ${lhs}`);
+    }
   }
 
   visitIsExpr(node: AST.IsExpr) {
@@ -780,7 +1111,7 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
     const rhs = this.visit<Value>(node.rhs);
     if (rhs.isOfTypeClass(ListT) || rhs.isOfTypeClass(TupleT)) {
       // @ts-ignore
-      const items = rhs as IndexableValue;
+      const items = rhs as SizedIndexableValue;
       if (items.operatorIn(lhs)) {
         return CWSBool.TRUE;
       } else {
@@ -808,19 +1139,20 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
 
   visitNoneCheckExpr(node: AST.NoneCheckExpr) {
     const expr = this.visit<Value>(node.expr);
-    return expr.isOfType(NoneT) ? CWSBool.TRUE : CWSBool.FALSE;
+    return expr.isOfType(NoneT) ? CWSBool.FALSE : CWSBool.TRUE;
   }
 
   visitTryCatchElseExpr(node: AST.TryCatchElseExpr) {
-    let prevScope = this.scope;
-    this.scope = prevScope.subscope();
+    // TODO: might need to push / pop scope around this.visit
+    this.pushScope(this.scope.subscope());
     const result = this.visit(node.body); // Val, ErrorInstance
-    if (result.isOfType(ErrorT)) {
+    this.popScope();
+    if (result instanceof Failure) {
       for (let c of node.catch_.toArray()) {
         let ty = this.visitType(c.ty);
-        if (result.isOfType(ty)) {
+        if (result.error.isOfType(ty)) {
           if (c.name !== null) {
-            this.scope.setSymbol(c.name.value, result);
+            this.scope.setSymbol(c.name.value, result.error);
           }
           return this.visit(c.body);
         }
@@ -828,7 +1160,7 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
       if (node.else_ !== null) {
         return this.visit(node.else_);
       } else {
-        return new Failure(result);
+        return result;
       }
     } else if (result.isOfType(NoneT)) {
       if (node.else_ !== null) {

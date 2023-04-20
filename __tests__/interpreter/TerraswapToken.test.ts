@@ -1,7 +1,11 @@
-import { CWScriptInterpreter } from '../../src/interpreter';
+import {
+  ContractInstance,
+  CWScriptInterpreter,
+  Env,
+} from '../../src/interpreter';
 import {
   ContractDefn,
-  ContractInstance,
+  ContractReference,
   CWSString,
   STDLIB,
   StringT,
@@ -44,25 +48,52 @@ describe('Interpreter: TerraswapToken', () => {
       'terra1hzh9vpxhsk82503se0vv5jj6etdvxu3nv8z07e'
     );
     let instantiateArgs = args([], {
-      name: StringT.value('My Token'),
-      symbol: StringT.value('MYT'),
+      name: StringT.value('Terran One Token'),
+      symbol: StringT.value('TONE'),
       decimals: U8_T.value(6),
       initial_balances: CoinList.value([
+        Coin.value(args([StringT.value('yogesh'), U128_T.value('1000000000')])),
         Coin.value(
-          args([
-            StringT.value('terra1hzh9vpxhsk82503se0vv5jj6etdvxu3nv8z07e'),
-            U128_T.value(1000000),
-          ])
+          args([StringT.value('william'), U128_T.value('1000000000')])
         ),
       ]),
     });
     let instantiateMsg = TerraswapToken.instantiate(instantiateArgs);
-    let myToken = TerraswapToken.value(AddressT.value(myAddress));
     // call the instantiate implementation
-    let instantiateImpl = TerraswapToken.getSymbol<FnDefn>('#instantiate#impl');
-    let res = interpreter.callFn(instantiateImpl, instantiateArgs);
 
-    expect(TerraswapToken).toBeDefined();
+    let env: Env = {
+      block: {
+        height: 1,
+        time: 1,
+        chain_id: 'terran-1',
+      },
+      contract: {
+        address: 't1tokenaddr',
+      },
+    };
+
+    let info = {
+      sender: 'william',
+      funds: [
+        {
+          amount: '1000000000',
+          denom: 'utone',
+        },
+      ],
+    };
+
+    let myToken = new ContractInstance(interpreter, TerraswapToken);
+    let res = myToken.instantiate(env, info, instantiateArgs);
+    let res2 = myToken.exec(
+      env,
+      info,
+      'transfer',
+      args([], {
+        recipient: StringT.value('yogesh'),
+        amount: U128_T.value('5000000'),
+      })
+    );
+
     expect(TerraswapToken).toBeInstanceOf(ContractDefn);
   });
 });

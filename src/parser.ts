@@ -98,6 +98,8 @@ import {
   TypeAliasDefnContext,
   TypeVariantContext,
   ArgContext,
+  DebugStmt_Context,
+  DebugStmtContext,
 } from './grammar/CWScriptParser';
 import { CWScriptLexer as ANTLRCWScriptLexer } from './grammar/CWScriptLexer';
 import { CharStreams, CommonTokenStream, ParserRuleContext } from 'antlr4ts';
@@ -346,6 +348,23 @@ export class CWScriptASTBuilderVisitor
   visitVariant_unit(ctx: Variant_unitContext): AST.EnumVariantUnit {
     let name = this.visitIdent(ctx._name);
     return new AST.EnumVariantUnit(name).$(ctx);
+  }
+
+  visitDebugStmt_(ctx: DebugStmt_Context): AST.DebugStmt {
+    let stmts: AST.Stmt[] = [];
+    let block = ctx.block();
+    let stmt = ctx.stmt();
+    if (stmt) {
+      stmts = [this.visit(stmt) as AST.Stmt];
+    }
+    if (block) {
+      stmts = this.visitBlock(block).children;
+    }
+    return new AST.DebugStmt(stmts).$(ctx);
+  }
+
+  visitDebugStmt(ctx: DebugStmtContext): AST.DebugStmt {
+    return this.visitDebugStmt_(ctx.debugStmt_());
   }
 
   visitLetStmt_(ctx: LetStmt_Context): AST.LetStmt {
@@ -639,16 +658,16 @@ export class CWScriptASTBuilderVisitor
     return new AST.CatchClause(name, ty, body).$(ctx);
   }
 
-  visitAndExpr(ctx: AndExprContext): AST.BinOpExpr {
+  visitAndExpr(ctx: AndExprContext): AST.AndExpr {
     const lhs = this.visit(ctx.expr()[0]) as AST.Expr;
     const rhs = this.visit(ctx._rhs) as AST.Expr;
-    return new AST.BinOpExpr(lhs, AST.Op.AND, rhs).$(ctx);
+    return new AST.AndExpr(lhs, rhs).$(ctx);
   }
 
-  visitOrExpr(ctx: OrExprContext): AST.BinOpExpr {
+  visitOrExpr(ctx: OrExprContext): AST.OrExpr {
     const lhs = this.visit(ctx.expr()[0]) as AST.Expr;
     const rhs = this.visit(ctx._rhs) as AST.Expr;
-    return new AST.BinOpExpr(lhs, AST.Op.OR, rhs).$(ctx);
+    return new AST.OrExpr(lhs, rhs).$(ctx);
   }
 
   visitQueryNowExpr(ctx: QueryNowExprContext): AST.QueryNowExpr {

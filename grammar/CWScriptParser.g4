@@ -145,7 +145,8 @@ callOptions: (LBRACE ((memberVal) (COMMA memberVal)* COMMA?)? RBRACE);
 
 // Statements
 stmt:
-	(ann+=annot)* letStmt_ SEMI?           # LetStmt
+    (ann+=annot)* debugStmt_ SEMI? 		# DebugStmt
+	| (ann+=annot)* letStmt_ SEMI?           # LetStmt
     | (ann+=annot)* constStmt_ SEMI?	   # ConstStmt
     | (ann+=annot)* assignStmt_ SEMI?     # AssignStmt
     | (ann+=annot)* ifStmt_ SEMI?         # IfStmt
@@ -157,6 +158,8 @@ stmt:
     | (ann+=annot)* RETURN expr (semi=SEMI)?      # ReturnStmt
     | (ann+=annot)* FAIL expr (semi=SEMI)?        # FailStmt
     | (ann+=annot)* expr SEMI?             # ExprStmt;
+
+debugStmt_: DEBUG (block | stmt)?;
 
 letStmt_: LET let_binding (EQ expr)?;
 constStmt_: CONST ident EQ expr;
@@ -272,7 +275,6 @@ reservedKeyword:
     | TRUE
     | FALSE
     | LET
-    | RETURN
     | STRUCT
     | ENUM
     | TYPE

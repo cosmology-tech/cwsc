@@ -50,6 +50,7 @@ import { Grouped2ExprContext } from "./CWScriptParser";
 import { PathTContext } from "./CWScriptParser";
 import { VariantTContext } from "./CWScriptParser";
 import { LensTContext } from "./CWScriptParser";
+import { FnTContext } from "./CWScriptParser";
 import { OptionTContext } from "./CWScriptParser";
 import { ListTContext } from "./CWScriptParser";
 import { TupleTContext } from "./CWScriptParser";
@@ -57,6 +58,7 @@ import { DefnTContext } from "./CWScriptParser";
 import { IdentBindingContext } from "./CWScriptParser";
 import { StructBindingContext } from "./CWScriptParser";
 import { TupleBindingContext } from "./CWScriptParser";
+import { DebugStmtContext } from "./CWScriptParser";
 import { LetStmtContext } from "./CWScriptParser";
 import { ConstStmtContext } from "./CWScriptParser";
 import { AssignStmtContext } from "./CWScriptParser";
@@ -99,6 +101,7 @@ import { Variant_Context } from "./CWScriptParser";
 import { Variant_structContext } from "./CWScriptParser";
 import { Variant_unitContext } from "./CWScriptParser";
 import { TypeExprContext } from "./CWScriptParser";
+import { FnTypeContext } from "./CWScriptParser";
 import { TypeLensContext } from "./CWScriptParser";
 import { TypePathContext } from "./CWScriptParser";
 import { TypeVariantContext } from "./CWScriptParser";
@@ -109,6 +112,7 @@ import { FnDefnContext } from "./CWScriptParser";
 import { AnnotContext } from "./CWScriptParser";
 import { CallOptionsContext } from "./CWScriptParser";
 import { StmtContext } from "./CWScriptParser";
+import { DebugStmt_Context } from "./CWScriptParser";
 import { LetStmt_Context } from "./CWScriptParser";
 import { ConstStmt_Context } from "./CWScriptParser";
 import { IdentBinding_Context } from "./CWScriptParser";
@@ -748,6 +752,19 @@ export interface CWScriptParserListener extends ParseTreeListener {
 	exitLensT?: (ctx: LensTContext) => void;
 
 	/**
+	 * Enter a parse tree produced by the `FnT`
+	 * labeled alternative in `CWScriptParser.typeExpr`.
+	 * @param ctx the parse tree
+	 */
+	enterFnT?: (ctx: FnTContext) => void;
+	/**
+	 * Exit a parse tree produced by the `FnT`
+	 * labeled alternative in `CWScriptParser.typeExpr`.
+	 * @param ctx the parse tree
+	 */
+	exitFnT?: (ctx: FnTContext) => void;
+
+	/**
 	 * Enter a parse tree produced by the `OptionT`
 	 * labeled alternative in `CWScriptParser.typeExpr`.
 	 * @param ctx the parse tree
@@ -837,6 +854,19 @@ export interface CWScriptParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	exitTupleBinding?: (ctx: TupleBindingContext) => void;
+
+	/**
+	 * Enter a parse tree produced by the `DebugStmt`
+	 * labeled alternative in `CWScriptParser.stmt`.
+	 * @param ctx the parse tree
+	 */
+	enterDebugStmt?: (ctx: DebugStmtContext) => void;
+	/**
+	 * Exit a parse tree produced by the `DebugStmt`
+	 * labeled alternative in `CWScriptParser.stmt`.
+	 * @param ctx the parse tree
+	 */
+	exitDebugStmt?: (ctx: DebugStmtContext) => void;
 
 	/**
 	 * Enter a parse tree produced by the `LetStmt`
@@ -1325,6 +1355,17 @@ export interface CWScriptParserListener extends ParseTreeListener {
 	exitTypeExpr?: (ctx: TypeExprContext) => void;
 
 	/**
+	 * Enter a parse tree produced by `CWScriptParser.fnType`.
+	 * @param ctx the parse tree
+	 */
+	enterFnType?: (ctx: FnTypeContext) => void;
+	/**
+	 * Exit a parse tree produced by `CWScriptParser.fnType`.
+	 * @param ctx the parse tree
+	 */
+	exitFnType?: (ctx: FnTypeContext) => void;
+
+	/**
 	 * Enter a parse tree produced by `CWScriptParser.typeLens`.
 	 * @param ctx the parse tree
 	 */
@@ -1433,6 +1474,17 @@ export interface CWScriptParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	exitStmt?: (ctx: StmtContext) => void;
+
+	/**
+	 * Enter a parse tree produced by `CWScriptParser.debugStmt_`.
+	 * @param ctx the parse tree
+	 */
+	enterDebugStmt_?: (ctx: DebugStmt_Context) => void;
+	/**
+	 * Exit a parse tree produced by `CWScriptParser.debugStmt_`.
+	 * @param ctx the parse tree
+	 */
+	exitDebugStmt_?: (ctx: DebugStmt_Context) => void;
 
 	/**
 	 * Enter a parse tree produced by `CWScriptParser.letStmt_`.
