@@ -65,6 +65,19 @@ interface CW20 {
 
 contract TerraswapToken implements CW20 {
 
+  event Transfer(from: Address, to: Address, amount: Int)
+  event Burn(from: Address, amount: Int)
+  event Mint(to: Address, amount: Int)
+  event Send(from: Address, to: Address, amount: Int)
+  event IncreaseAllowance(owner: Address, spender: Address, amount: Int)
+  event DecreaseAllowance(owner: Address, spender: Address, amount: Int)
+  event TransferFrom(from: Address, to: Address, by: Address, amount: Int)
+  event BurnFrom(from: Address, by: Address, amount: Int)
+  event Log(from: Address, to: Address, by: Address, amount: Int)
+
+  error InvalidZeroAmount()
+  error Unauthorized()
+
   struct Timestamp(value: U64)
 
   enum Expiration {
@@ -97,13 +110,6 @@ contract TerraswapToken implements CW20 {
     // every map must have a default -- this makes it impossible to have a may_load error
     // there cannot be a case where we try to load something and it fail! due to the key
     // not existing.
-
-    // the following are the same:
-    // allowances[owner: Address, spender: Address]: AllowanceResponse? // default = None
-    // allowances[owner: Address, spender: Address]: AllowanceResponse? = None
-    // if no default is present for the type, then you must provide using '='
-    // allowances[owner: Address, spender: Address]: AllowanceResponse
-    // allowances[owner: Address, spender: Address]: AllowanceResponse = AllowanceResponse::empty()
     allowances[owner: Address, spender: Address]: AllowanceResponse? = None
   }
 
@@ -177,7 +183,7 @@ contract TerraswapToken implements CW20 {
     $state.balances[rcpt_addr] += amount
 
     // use the "emit" keyword to log an event occurrence to the blockchain
-    emit Transfer($info.sender, recipient, amount)
+    emit Transfer($info.sender, Address!(recipient), amount)
   }
 
   exec #Burn(amount: Int) {

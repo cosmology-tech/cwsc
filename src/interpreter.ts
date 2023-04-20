@@ -51,6 +51,8 @@ import {
   CtxInfoT,
   CtxResT,
   BoolT,
+  EventMsg,
+  EventT,
 } from './stdlib';
 
 //region <HELPER FUNCTIONS>
@@ -510,17 +512,11 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
       }
 
       if (x instanceof AST.ErrorDefn) {
-        this.scope.setSymbol(
-          '#error#' + x.name!.value,
-          this.visitStructDefn(x)
-        );
+        this.scope.setSymbol('#error#' + x.name!.value, this.visitErrorDefn(x));
       }
 
       if (x instanceof AST.EventDefn) {
-        this.scope.setSymbol(
-          '#event#' + x.name!.value,
-          this.visitStructDefn(x)
-        );
+        this.scope.setSymbol('#event#' + x.name!.value, this.visitEventDefn(x));
       }
 
       if (x instanceof AST.InstantiateDefn) {
@@ -627,8 +623,14 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
 
   //region <CONTRACT ITEMS>
 
-  visitErrorDefn = (node: AST.ErrorDefn) => this.visitStructDefn(node);
-  visitEventDefn = (node: AST.EventDefn) => this.visitStructDefn(node);
+  visitErrorDefn = (node: AST.ErrorDefn) => {
+    let struct = this.visitStructDefn(node);
+    return new ErrorMsg(struct.name, struct.params);
+  };
+  visitEventDefn = (node: AST.EventDefn) => {
+    let struct = this.visitStructDefn(node);
+    return new EventMsg(struct.name, struct.params);
+  };
 
   visitMapKeyDefn(node: AST.MapKeyDefn) {
     let ty = this.visitType(node.ty);
@@ -856,6 +858,26 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
     this.popScope();
   }
 
+  visitEmitStmt(node: AST.EmitStmt) {
+    if (!(node.expr instanceof AST.FnCallExpr)) {
+      throw new Error(`emit statement must be a call expression`);
+    } else if (!(node.expr.func instanceof AST.TypePath)) {
+      throw new Error(`emit statement must be a call to an event type`);
+    } else {
+      // TODO: make it more general
+      let name = node.expr.func.segments.toArray()[0].value;
+      let ty = this.scope.getSymbol('#event#' + name);
+      if (!ty.isSubOf(EventT)) {
+        throw new Error(`emit statement must be a call to an event type`);
+      }
+      let args = node.expr.args.map((x) => this.visitArg(x));
+      let val = ty.value(args);
+      let res = this.scope.getSymbol<StructInstance>('$res');
+      let events = res.getSymbol<ListInstance<EventMsg>>('events');
+      this.callMethod(events, 'push', [val]);
+    }
+  }
+
   visitExecStmt(node: AST.ExecStmt) {
     let val = this.visit<Value>(node.expr);
 
@@ -865,10 +887,7 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
     } else {
       let res = this.scope.getSymbol<StructInstance>('$res');
       let messages = res.getSymbol<ListInstance<typeof ExecMsgT>>('msgs');
-      this.callFn(
-        messages.getSymbol<MethodDefn>('push'),
-        args([messages, val])
-      );
+      this.callMethod(messages, 'push', [val]);
     }
   }
 
@@ -917,7 +936,7 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
           if (val.ty.isSubOf(InstantiateMsgT)) {
             let res = this.scope.getSymbol<StructInstance>('$res');
             let messages = res.getSymbol<ListInstance>('messages');
-            this.callFn(messages.getSymbol('push'), args([messages, val]));
+            this.callMethod(messages, 'push', [val]);
           } else {
             throw new Error(
               `tried to instantiate non-InstantiateMsg type ${val.ty.name}`
@@ -932,7 +951,7 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
         let res = this.scope.getSymbol<StructInstance>('$res');
         let messages =
           res.getSymbol<ListInstance<typeof InstantiateMsgT>>('messages');
-        this.callFn(messages.getSymbol('push'), args([messages, val]));
+        this.callMethod(messages, 'push', [val]);
       } else {
         throw new Error(
           `tried to instantiate non-InstantiateMsg type ${val.ty.name}`
@@ -948,7 +967,7 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
 
   visitFailStmt(node: AST.FailStmt) {
     let result = this.visit<Value>(node.expr);
-    if (!result.isOfType(ErrorT) && !result.isOfType(StringT)) {
+    if (!result.isInstanceOf(ErrorT) && !result.isInstanceOf(StringT)) {
       throw new Error(
         `tried to fail with value other than Error or String: ${result}`
       );
@@ -1006,6 +1025,11 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
   visitDColonExpr(node: AST.DColonExpr) {
     const obj = this.visit(node.obj) as SymbolTable;
     return obj.getSymbol(node.member.value);
+  }
+
+  callMethod(obj: Value, method: string, argVals: Value[]) {
+    let methodFn = obj.getSymbol<MethodDefn>(method);
+    return this.callFn(methodFn, args(argVals));
   }
 
   callFn(fn: FnDefn, args: Arg[], scope?: SymbolTable) {

@@ -132,10 +132,10 @@ export class Type<D extends Data | Impl = Data | Impl> extends SymbolTable {
     return new Value(this, data) as any;
   }
 
-  [operator(AST.Op.EQ)](lhs: Value<this>, rhs: Value<Type>): Value<CWSBool> {
+  [operator(AST.Op.EQ)](lhs: Value<this>, rhs: Value): Value<CWSBool> {
     // check if types are equal
     console.warn("default implementation of operator '==' used");
-    if (lhs.ty.isEq(rhs.ty)) {
+    if (lhs.equals(rhs)) {
       return CWSBool.TRUE;
     } else {
       return CWSBool.FALSE;
@@ -194,6 +194,10 @@ export class Value<
     super({});
   }
 
+  toString(): string {
+    return this.ty.name + '(' + this.data + ')';
+  }
+
   getSymbol<T = any>(name: string): T {
     if (!this.hasOwnSymbol(name)) {
       if (this.ty.hasOwnSymbol(name)) {
@@ -207,11 +211,11 @@ export class Value<
     return super.getSymbol(name);
   }
 
-  isOfType<T1 extends Type>(ty: T1): ty is T1 {
+  isOfType<T1 extends Type>(ty: T1): boolean {
     return this.ty.isEq(ty);
   }
 
-  isInstanceOf<T1 extends Type>(ty: T1): this is Value<T1> {
+  isInstanceOf<T1 extends Type>(ty: T1): boolean {
     return this.ty.isSubOf(ty);
   }
 
@@ -265,6 +269,16 @@ export class OptionT<T extends Type = any> extends Type<
       return new Value(this, data);
     } else {
       throw new Error(`cannot convert ${data.ty.name} into ${this.name}`);
+    }
+  }
+
+  fromVal(val: Value): GetV<this, Impl<Value<CWSNone>> | Impl<Value<T>>> {
+    if (val.isInstanceOf(this.inner)) {
+      return this.value(val);
+    } else if (val.isInstanceOf(NoneT)) {
+      return this.value(None);
+    } else {
+      throw new Error(`cannot convert ${val.ty.name} into ${this.name}`);
     }
   }
 }
@@ -442,13 +456,7 @@ export class SizedIndexableValue<T extends Type = Type, V extends Type = Type>
   }
 
   operatorIn(val: Value): boolean {
-    console.log(this.items);
-    console.log(val);
-    this.items.some((x) => {
-      console.log(x);
-      console.log(val);
-    });
-    return this.items.some((x) => x.equals(val));
+    return this.items.some((x) => val.equals(x));
   }
 
   equals(other: Value): boolean {
@@ -487,6 +495,10 @@ export class CWSAny extends Type<Data<any>> {
 
   isSuperOf(other: Type): boolean {
     return true;
+  }
+
+  fromVal(val: Value): Value<this, any> {
+    return val as any;
   }
 }
 
@@ -706,6 +718,10 @@ export class FnDefn<T extends Type = Type> extends SymbolTable {
           p = this.params.find((x) => x.name === arg.name)!;
         } else {
           p = this.params[i];
+        }
+        if (p.ty && !arg.value.isOfType(p.ty)) {
+          // try converting
+          arg.value = p.ty.fromVal(arg.value);
         }
         scope.setSymbol(p.name, arg.value);
       }
@@ -1022,7 +1038,7 @@ export class CWSAddress extends Type<Data<string>> {
     throw new Error(`Cannot get default value for ${this.name} type`);
   }
 
-  tryFromVal(val: Value): Value<this, string> {
+  fromVal(val: Value): Value<this, string> {
     if (val.isInstanceOf(StringT)) {
       return this.value(val.data);
     } else {
@@ -1067,6 +1083,14 @@ export class CWSInt extends Type<Data<bigint>> {
 
   defaultValue(): GetV<this, Data<bigint>> {
     return this.value(BigInt(0));
+  }
+
+  fromVal(val: Value): GetV<this, Data<bigint>> {
+    if (val.isInstanceOf(IntT)) {
+      return this.value(val.data);
+    } else {
+      throw new Error(`Cannot convert ${val.ty.name} to ${this.name}`);
+    }
   }
 
   // [operator(AST.Op.PLUS)](lhs_: Data<Int>, rhs_: Data) {

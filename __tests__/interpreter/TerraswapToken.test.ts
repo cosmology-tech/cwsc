@@ -93,6 +93,7 @@ describe('Interpreter: TerraswapToken', () => {
         amount: U128_T.value('5000000'),
       })
     );
+    console.log(res2);
 
     expect(TerraswapToken).toBeInstanceOf(ContractDefn);
   });
