@@ -526,7 +526,7 @@ export class StructExpr extends AST {
 }
 
 export class MemberVal extends AST {
-  constructor(public name: Ident, public value: Expr) {
+  constructor(public name: Ident, public value: Expr | null) {
     super();
   }
 }

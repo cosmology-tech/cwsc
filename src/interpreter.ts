@@ -411,9 +411,7 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
 
   makeError(message: string, node: AST.AST) {
     if (!node.$ctx) {
-      return new InterpreterError(
-        `Error occurred in node ${node.constructor.name} but no context was set`
-      );
+      return new InterpreterError(message);
     }
 
     let originalMsg = message;

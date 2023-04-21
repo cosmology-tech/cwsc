@@ -165,10 +165,6 @@ contract TerraswapToken implements CW20 {
 	  let mint = MinterData(Address!(mint.minter), mint.cap)
     }
 
-    TokenInfo(name,
-      symbol,
-        decimals, U128(total_supply), mint)[23]
-
 	$state.token_info = TokenInfo(name, symbol, decimals, U128(total_supply), mint)
   }
 

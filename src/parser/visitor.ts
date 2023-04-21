@@ -4,6 +4,7 @@ import { AbstractParseTreeVisitor } from 'antlr4ts/tree/AbstractParseTreeVisitor
 import * as P from '@/grammar/CWScriptParser';
 import { CWScriptParserVisitor as ANTLRCWScriptParserVisitor } from '@/grammar/CWScriptParserVisitor';
 import * as AST from '@/ast';
+import { Expr } from '@/ast';
 
 export class CWScriptASTBuilderVisitor
   extends AbstractParseTreeVisitor<AST.AST>
@@ -604,12 +605,18 @@ export class CWScriptASTBuilderVisitor
     return this.vlist<AST.Param>(ctx._params).$(ctx);
   }
 
+  visitMemberVal(ctx: P.MemberValContext): AST.MemberVal {
+    let name = this.visitIdent(ctx._name);
+    let value = ctx._value ? (this.visit(ctx._value) as Expr) : null;
+    return new AST.MemberVal(name, value).$(ctx);
+  }
+
   visitStructExpr(ctx: P.StructExprContext): AST.StructExpr {
     let ty = ctx.typeExpr()
       ? (this.visit(ctx.typeExpr()!) as AST.TypeExpr)
       : null;
-    let memberVals = this.vlist<AST.MemberVal>(ctx._members);
-    return new AST.StructExpr(ty, memberVals).$(ctx);
+    let memberVals = ctx._members.map((x) => this.visitMemberVal(x));
+    return new AST.StructExpr(ty, new AST.List(memberVals)).$(ctx);
   }
 
   visitUnitVariantExpr(ctx: P.UnitVariantExprContext): AST.UnitVariantExpr {
