@@ -1,8 +1,10 @@
 type SymbolEnv = {
   [key: string]: any;
 };
+
 export class SymbolTable {
   public symbols: SymbolEnv;
+
   constructor(symbols?: SymbolEnv, public parent?: SymbolTable) {
     this.symbols = symbols ?? {};
   }

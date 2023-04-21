@@ -58,6 +58,7 @@ import { DefnTContext } from "./CWScriptParser";
 import { IdentBindingContext } from "./CWScriptParser";
 import { StructBindingContext } from "./CWScriptParser";
 import { TupleBindingContext } from "./CWScriptParser";
+import { AnnotBlockStmtContext } from "./CWScriptParser";
 import { DebugStmtContext } from "./CWScriptParser";
 import { LetStmtContext } from "./CWScriptParser";
 import { ConstStmtContext } from "./CWScriptParser";
@@ -854,6 +855,19 @@ export interface CWScriptParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	exitTupleBinding?: (ctx: TupleBindingContext) => void;
+
+	/**
+	 * Enter a parse tree produced by the `AnnotBlockStmt`
+	 * labeled alternative in `CWScriptParser.stmt`.
+	 * @param ctx the parse tree
+	 */
+	enterAnnotBlockStmt?: (ctx: AnnotBlockStmtContext) => void;
+	/**
+	 * Exit a parse tree produced by the `AnnotBlockStmt`
+	 * labeled alternative in `CWScriptParser.stmt`.
+	 * @param ctx the parse tree
+	 */
+	exitAnnotBlockStmt?: (ctx: AnnotBlockStmtContext) => void;
 
 	/**
 	 * Enter a parse tree produced by the `DebugStmt`

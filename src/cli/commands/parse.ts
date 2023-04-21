@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import { readFileSync, writeFileSync } from 'fs';
-import { CWScriptParser } from '../../parser';
+import { CWScriptParser } from '@/parser';
 
 export const command = new Command('parse');
 
@@ -13,7 +13,7 @@ command.action((filename) => {
   const fileSourceText = readFileSync(filename, 'utf8');
   writeFileSync(
     '/dev/stdout',
-    JSON.stringify(CWScriptParser.parse(fileSourceText).toJSON())
+    JSON.stringify(CWScriptParser.parseAndValidate(fileSourceText).toJSON())
   );
 });
 

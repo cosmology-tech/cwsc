@@ -9,6 +9,7 @@ IMPLEMENTS: 'implements';
 EXTENDS: 'extends';
 ERROR: 'error';
 EVENT: 'event';
+DEFER: 'defer';
 INSTANTIATE_NOW: 'instantiate!';
 EXEC_NOW: 'exec!';
 QUERY_NOW: 'query!';

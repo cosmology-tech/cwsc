@@ -1,8 +1,4 @@
-import {
-  ContractInstance,
-  CWScriptInterpreter,
-  Env,
-} from '../../src/interpreter';
+import { ContractInstance, CWScriptInterpreter, Env } from '@/interpreter';
 import {
   ContractDefn,
   ContractReference,
@@ -19,8 +15,8 @@ import {
   StructDefn,
   ListT,
   FnDefn,
-} from '../../src/stdlib';
-import { CWScriptParser } from '../../src/parser';
+} from '@/stdlib';
+import { CWScriptParser } from '@/parser';
 import * as fs from 'fs';
 
 const EXAMPLES_DIR = __dirname + '/../../examples';
@@ -28,13 +24,11 @@ const TERRASWAP_TOKEN_FILE = EXAMPLES_DIR + '/terraswap/TerraswapToken.cws';
 
 describe('Interpreter: TerraswapToken', () => {
   it('should be able to parse and interpret a TerraswapToken contract', () => {
-    const ast = CWScriptParser.parse(
-      fs.readFileSync(TERRASWAP_TOKEN_FILE, 'utf8')
-    );
+    const sourceText = fs.readFileSync(TERRASWAP_TOKEN_FILE, 'utf8');
 
     const interpreter = new CWScriptInterpreter({
-      files: {
-        [TERRASWAP_TOKEN_FILE]: ast,
+      sources: {
+        [TERRASWAP_TOKEN_FILE]: sourceText,
       },
       env: STDLIB,
     });

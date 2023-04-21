@@ -1,5 +1,5 @@
-import * as AST from './ast';
-import { SymbolTable } from './util/symbol-table';
+import * as AST from '@/ast';
+import { SymbolTable } from '@/util/symbol-table';
 import {
   Type,
   Value,
@@ -54,6 +54,10 @@ import {
   EventMsg,
   EventT,
 } from './stdlib';
+import { CWScriptParser } from '@/parser';
+import { getPosition, TextView } from '@/util/position';
+import chalk, { redBright } from 'chalk';
+import path from 'path';
 
 //region <HELPER FUNCTIONS>
 
@@ -83,8 +87,8 @@ function operator<O extends AST.Op>(op: O): OperatorKey<O> {
 //region <INTERPRETER>
 
 export interface CWScriptInterpreterContext {
-  files: {
-    [filename: string]: AST.SourceFile;
+  sources: {
+    [filename: string]: string;
   };
 
   env?: {
@@ -200,6 +204,7 @@ export class StateMapAccessor extends Value implements Indexable {
     let key = this.buildKey(args);
     return this.state.symbols.get(key, this.default_);
   }
+
   setIndex(args: Arg[], val: Value) {
     let key = this.buildKey(args);
     this.state.symbols[key] = val;
@@ -292,6 +297,7 @@ export class ContractInstance<
   C extends ContractDefn = ContractDefn
 > extends Value<C, null> {
   public state: ContractState;
+
   constructor(public interpreter: CWScriptInterpreter, public ty: C) {
     super(ty, null);
     this.state = new ContractState(interpreter, ty);
@@ -319,17 +325,28 @@ export class ContractInstance<
 }
 
 export class CWScriptInterpreter extends SymbolTable {
-  visitor: CWScriptInterpreterVisitor;
+  public visitor?: CWScriptInterpreterVisitor;
+
   constructor(public ctx: CWScriptInterpreterContext) {
     super({}, new SymbolTable(ctx.env));
-    this.visitor = new CWScriptInterpreterVisitor(this);
-    Object.keys(this.ctx.files).forEach((filename) => {
-      this.visitor.visit(this.ctx.files[filename]);
-    });
+    for (let file in ctx.sources) {
+      let sourceText = this.ctx.sources[file];
+      this.runCode(sourceText, file);
+    }
+  }
+
+  runCode(sourceText: string, file: string = ':memory:') {
+    let tree = CWScriptParser.parseAndValidate(sourceText);
+    this.visitor = new CWScriptInterpreterVisitor(this, sourceText, file);
+    this.visitor.visit(tree); // run
   }
 
   callFn(fn: FnDefn, args: Arg[], scope?: SymbolTable) {
-    return this.visitor.callFn(fn, args, scope);
+    if (this.visitor !== undefined) {
+      return this.visitor.callFn(fn, args, scope);
+    } else {
+      throw new InterpreterError('Interpreter not initialized');
+    }
   }
 }
 
@@ -355,8 +372,15 @@ export class DebugCall extends FnDefn {
   }
 }
 
+export class InterpreterError extends Error {
+  constructor(message: string) {
+    super(message);
+  }
+}
+
 export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
   public ctx: any;
+  public tv: TextView;
   scopes: SymbolTable[];
 
   get scope(): SymbolTable {
@@ -371,15 +395,134 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
     this.scopes.pop();
   }
 
-  constructor(public interpreter: CWScriptInterpreter) {
+  public file: string;
+
+  constructor(
+    public interpreter: CWScriptInterpreter,
+    public sourceText: string,
+    file: string
+  ) {
     super();
     this.scopes = [interpreter];
+    this.tv = new TextView(sourceText);
+    // make absolute path
+    this.file = path.resolve(file);
   }
 
-  // visit<T = any>(node: AST.AST) {
-  //   console.log(node.$ctx?.text);
-  //   return super.visit(node);
-  // }
+  makeError(message: string, node: AST.AST) {
+    if (!node.$ctx) {
+      return new InterpreterError(
+        `Error occurred in node ${node.constructor.name} but no context was set`
+      );
+    }
+
+    let originalMsg = message;
+
+    let pos = getPosition(node.$ctx);
+    // get range of node
+    let range = this.tv.range(pos.start, pos.end, true)!;
+    message = `Error occured in node: '${node.constructor.name}'`;
+
+    let fnDefn = node.nearestAncestorWhere(
+      (n) =>
+        n instanceof AST.FnDefn ||
+        n instanceof AST.InstantiateDefn ||
+        n instanceof AST.ReplyDefn ||
+        n instanceof AST.ExecDefn ||
+        n instanceof AST.QueryDefn
+    );
+
+    if (fnDefn) {
+      let fnName: string;
+      let prefix = '';
+      if (fnDefn instanceof AST.InstantiateDefn) {
+        fnName = '#instantiate';
+      } else {
+        fnName = (fnDefn as any).name.value;
+      }
+
+      if (fnDefn instanceof AST.ExecDefn) {
+        prefix = 'exec ';
+        fnName = '#' + fnName;
+      } else if (fnDefn instanceof AST.QueryDefn) {
+        prefix = 'query ';
+        fnName = '#' + fnName;
+      } else if (fnDefn instanceof AST.ReplyDefn) {
+        prefix = 'reply ';
+      }
+
+      let cDefn = fnDefn.nearestAncestorWhere(
+        (n) => n instanceof AST.ContractDefn || n instanceof AST.InterfaceDefn
+      );
+
+      if (cDefn) {
+        message += ` inside '${prefix}${(cDefn as any).name.value}.${fnName}'`;
+      } else {
+        message += ` inside '${prefix}${fnName}'`;
+      }
+    }
+
+    message += `\n\n`;
+    message += `Source: ${this.file}:${range.start.line}:${range.start.character}-${range.end.line}:${range.end.character}\n\n`;
+
+    let lineNoWidth = 5;
+    let gutterWidth = lineNoWidth + 2;
+    let makeLine = (line: number, text: string) => {
+      return chalk.dim(
+        `${line.toString().padStart(lineNoWidth, ' ')}| ${text}\n`
+      );
+    };
+
+    let makeErrorLine = (line: number, text: string) => {
+      return `${chalk.redBright(
+        chalk.bold(line.toString().padStart(lineNoWidth, ' ')) + '|'
+      )} ${text}\n`;
+    };
+
+    this.tv.surroundingLinesOfRange(range, 5, true).forEach((x) => {
+      // if this is the starting line, make a pointer
+      // if range.start.line <= x.line <= range.end.line, highlight the line
+      if (x.line >= range.start.line && x.line <= range.end.line) {
+        // only highlight the part of the line that is in the range
+        let start = x.line === range.start.line ? range.start.character - 1 : 0;
+        let end =
+          x.line === range.end.line ? range.end.character - 1 : x.text.length;
+        message += makeErrorLine(
+          x.line,
+          chalk.dim(x.text.slice(0, start)) +
+            chalk.bold(chalk.redBright(x.text.slice(start, end))) +
+            chalk.dim(x.text.slice(end))
+        );
+        if (x.line === range.end.line) {
+          message += chalk.bold(
+            chalk.yellow(
+              ' '.repeat(gutterWidth + range.end.character - 2) +
+                '^ ' +
+                originalMsg +
+                '\n'
+            )
+          );
+        }
+      } else {
+        message += makeLine(x.line, x.text);
+      }
+    });
+    message += `...\n\n`;
+
+    return new InterpreterError(message);
+  }
+
+  visit<T = any>(node: AST.AST): T {
+    try {
+      return super.visit(node);
+    } catch (e) {
+      if (e instanceof InterpreterError) {
+        throw e;
+      } else {
+        throw this.makeError((e as any).message, node);
+      }
+    }
+  }
 
   //region <PERVASIVES>
 
@@ -395,7 +538,10 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
 
     if (node.optional) {
       if (ty === undefined) {
-        throw new Error(`Optional param '${name}?' must have a type`);
+        throw this.makeError(
+          `Optional param '${name}?' must have a type`,
+          node
+        );
       }
       ty = new OptionT(ty);
       if (default_ === undefined) {
@@ -408,8 +554,9 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
         ty = default_.ty;
       } else if (!default_.ty.isSubOf(ty)) {
         // check that default value is of the correct type
-        throw new Error(
-          `Default for param '${name}' is not compatible with ${ty.name} (got ${default_.ty.name})`
+        throw this.makeError(
+          `Default for param '${name}' is not compatible with ${ty.name} (got ${default_.ty.name})`,
+          node.default_!
         );
       }
     }
@@ -424,7 +571,7 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
     } else if (res instanceof Value && res.isOfType(NoneT)) {
       return NoneT;
     } else {
-      throw new Error(`Expected type, got ${res}`);
+      throw this.makeError(`Expected type, got ${res}`, node);
     }
   }
 
@@ -577,10 +724,13 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
     }
     let params = node.params.map((p, i) => {
       if (!p.name) {
-        throw new Error(`${name}: missing name for struct ${i}`);
+        throw this.makeError(`${name}: missing name for struct ${i}`, p);
       }
       if (!p.ty) {
-        throw new Error(`${name}: missing type for member ${p.name!.value}`);
+        throw this.makeError(
+          `${name}: missing type for member ${p.name!.value}`,
+          p
+        );
       }
       let ty = this.visit(p.ty!);
       let default_ = p.default_ ? this.visit(p.default_) : undefined;
@@ -730,8 +880,9 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
         this.scope.setSymbol(node.binding.name.value, val);
       } else if (node.binding instanceof AST.TupleBinding) {
         if (!val.isOfTypeClass(TupleT) && !val.isOfTypeClass(ListT)) {
-          throw new Error(
-            `tried to unpack ${val} as tuple of ${node.binding.bindings.length} elements`
+          throw this.makeError(
+            `tried to unpack ${val} as tuple of ${node.binding.bindings.length} elements`,
+            node.expr
           );
         }
         node.binding.bindings.forEach((symbol, i) => {
@@ -744,7 +895,7 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
       } else {
         // struct binding
         if (val.isOfTypeClass(StructDefn)) {
-          throw new Error(`tried to unpack ${val} as struct`);
+          throw this.makeError(`tried to unpack ${val} as struct`, node.expr);
         }
         node.binding.bindings.forEach((symbol) => {
           let name = symbol.name.value;
@@ -752,7 +903,10 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
         });
       }
     } else {
-      throw new Error(`let statement without expression not yet implemented`);
+      throw this.makeError(
+        `let statement without expression not yet implemented`,
+        node
+      );
     }
   }
 
@@ -765,8 +919,9 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
       let member = node.lhs.member.value;
       let tbl = obj.firstTableWithSymbol(member);
       if (tbl === undefined) {
-        throw new Error(
-          `tried to assign to non-existent member '${member}' of ${obj}`
+        throw this.makeError(
+          `tried to assign to non-existent member '${member}' of ${obj}`,
+          node.lhs.member
         );
       } else {
         tbl.setSymbol(member, rhs);
@@ -782,8 +937,9 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
         let args = node.lhs.args.map((x) => new Arg(this.visit(x)));
         return (obj as unknown as Indexable).setIndex(args, rhs);
       } else {
-        throw new Error(
-          `tried to index assign to non-indexable type ${obj.ty}`
+        throw this.makeError(
+          `tried to index assign to non-indexable type ${obj.ty}`,
+          node.lhs.obj
         );
       }
     }
@@ -799,7 +955,10 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
       }
     } else {
       // @ts-ignore
-      throw new Error(`predicate must be a Bool, got ${pred.ty}`);
+      throw this.makeError(
+        `predicate must be a Bool, got ${pred.ty}`,
+        node.pred
+      );
     }
   }
 
@@ -807,7 +966,10 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
     let expr = this.visit(node.iter) as Value | ListInstance | TupleInstance;
     // make sure it is iterable
     if (!expr.isOfTypeClass(ListT) && !expr.isOfTypeClass(TupleT)) {
-      throw new Error(`tried to iterate over non-iterable type ${expr.ty}`);
+      throw this.makeError(
+        `tried to iterate over non-iterable type ${expr.ty}`,
+        node.iter
+      );
     }
 
     // get iterator
@@ -827,8 +989,9 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
       for (let val = iter.next(); val !== undefined; val = iter.next()) {
         // make sure val is iterable
         if (!val.isOfTypeClass(TupleT) && !val.isOfTypeClass(ListT)) {
-          throw new Error(
-            `tried to unpack ${val} as tuple of ${node.binding.bindings.length} elements`
+          throw this.makeError(
+            `tried to unpack ${val} as tuple of ${node.binding.bindings.length} elements`,
+            node.binding
           );
         }
 
@@ -843,7 +1006,10 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
     } else {
       for (let val = iter.next(); val !== undefined; val = iter.next()) {
         if (!val.isOfTypeClass(StructDefn)) {
-          throw new Error(`tried to unpack ${val} as struct`);
+          throw this.makeError(
+            `tried to unpack ${val} as struct`,
+            node.binding
+          );
         }
         node.binding.bindings.forEach((symbol) => {
           let name = symbol.name.value;
@@ -860,15 +1026,24 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
 
   visitEmitStmt(node: AST.EmitStmt) {
     if (!(node.expr instanceof AST.FnCallExpr)) {
-      throw new Error(`emit statement must be a call expression`);
+      throw this.makeError(
+        `emit statement must be a call expression`,
+        node.expr
+      );
     } else if (!(node.expr.func instanceof AST.TypePath)) {
-      throw new Error(`emit statement must be a call to an event type`);
+      throw this.makeError(
+        `emit statement must be a call to an event type`,
+        node.expr.func
+      );
     } else {
       // TODO: make it more general
       let name = node.expr.func.segments.toArray()[0].value;
       let ty = this.scope.getSymbol('#event#' + name);
       if (!ty.isSubOf(EventT)) {
-        throw new Error(`emit statement must be a call to an event type`);
+        throw this.makeError(
+          `emit statement must be a call to an event type`,
+          node.expr
+        );
       }
       let args = node.expr.args.map((x) => this.visitArg(x));
       let val = ty.value(args);
@@ -883,7 +1058,10 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
 
     // check that val is an ExecMsg// @ts-ignore
     if (!val.ty.isSubOf(ExecMsgT)) {
-      throw new Error(`tried to execute non-exec type ${val.ty.name}`);
+      throw this.makeError(
+        `tried to execute non-exec type ${val.ty.name}`,
+        node.expr
+      );
     } else {
       let res = this.scope.getSymbol<StructInstance>('$res');
       let messages = res.getSymbol<ListInstance<typeof ExecMsgT>>('msgs');
@@ -893,10 +1071,14 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
 
   visitDelegateExecStmt(node: AST.DelegateExecStmt) {
     if (!(node.expr instanceof AST.FnCallExpr)) {
-      throw new Error(`delegate_exec! statement must be function call`);
+      throw this.makeError(
+        `delegate_exec! statement must be function call`,
+        node.expr
+      );
     } else if (!(node.expr.func instanceof AST.Ident)) {
-      throw new Error(
-        `delegate_exec! statement must directly call an exec #fn`
+      throw this.makeError(
+        `delegate_exec! statement must directly call an exec #fn`,
+        node.expr
       );
     } else {
       let fn = this.scope.getSymbol<FnDefn>(
@@ -910,15 +1092,19 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
   visitInstantiateStmt(node: AST.InstantiateStmt) {
     if (node.new_) {
       if (!(node.expr instanceof AST.FnCallExpr)) {
-        throw new Error(`instantiate!# statement must be function call`);
+        throw this.makeError(
+          `instantiate!# statement must be function call`,
+          node.expr
+        );
       } else if (
         !(
           node.expr.func instanceof AST.TypePath ||
           node.expr.func instanceof AST.Ident
         )
       ) {
-        throw new Error(
-          `instantiate!# statement must directly use a contract name`
+        throw this.makeError(
+          `instantiate!# statement must directly use a contract name`,
+          node.expr
         );
       } else {
         let ty: Type;
@@ -928,7 +1114,10 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
           ty = this.scope.getSymbol<Type>(node.expr.func.value);
         }
         if (!(ty instanceof ContractDefn)) {
-          throw new Error(`tried to instantiate non-contract type ${ty}`);
+          throw this.makeError(
+            `tried to instantiate non-contract type ${ty}`,
+            node.expr
+          );
         } else {
           let fn = ty.getSymbol<FnDefn>('#instantiate');
           let args_ = node.expr.args.map((x) => new Arg(this.visit(x)));
@@ -938,8 +1127,9 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
             let messages = res.getSymbol<ListInstance>('messages');
             this.callMethod(messages, 'push', [val]);
           } else {
-            throw new Error(
-              `tried to instantiate non-InstantiateMsg type ${val.ty.name}`
+            throw this.makeError(
+              `tried to instantiate non-InstantiateMsg type ${val.ty.name}`,
+              node.expr
             );
           }
         }
@@ -953,8 +1143,9 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
           res.getSymbol<ListInstance<typeof InstantiateMsgT>>('messages');
         this.callMethod(messages, 'push', [val]);
       } else {
-        throw new Error(
-          `tried to instantiate non-InstantiateMsg type ${val.ty.name}`
+        throw this.makeError(
+          `tried to instantiate non-InstantiateMsg type ${val.ty.name}`,
+          node.expr
         );
       }
     }
@@ -968,8 +1159,9 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
   visitFailStmt(node: AST.FailStmt) {
     let result = this.visit<Value>(node.expr);
     if (!result.isInstanceOf(ErrorT) && !result.isInstanceOf(StringT)) {
-      throw new Error(
-        `tried to fail with value other than Error or String: ${result}`
+      throw this.makeError(
+        `tried to fail with value other than Error or String: ${result}`,
+        node.expr
       );
     } else {
       if (result.isOfType(StringT)) {
@@ -1001,7 +1193,10 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
     } else {
       if (obj.isOfType(NoneT)) {
         // TODO: result types
-        throw new Error(`tried to access member ${node.member.value} of None`);
+        throw this.makeError(
+          `tried to access member ${node.member.value} of None`,
+          node.member
+        );
       } else {
         return (obj as SymbolTable).getSymbol(node.member.value);
       }
@@ -1018,7 +1213,10 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
       const args = node.args.map((x) => this.visit(x));
       return (obj as unknown as Indexable).getIndex(args);
     } else {
-      throw new Error(`tried to index non-tuple/list: ${obj.ty}`);
+      throw this.makeError(
+        `tried to index non-tuple/list: ${obj.ty}`,
+        node.obj
+      );
     }
   }
 
@@ -1063,7 +1261,7 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
       return func.value(args);
     } else if (func instanceof Type) {
       if (args.length !== 1) {
-        throw new Error(`can only call type with one argument`);
+        throw this.makeError(`can only call type with one argument`, node);
       }
       if (node.fallible) {
         return func.tryFromVal(args[0].value);
@@ -1071,7 +1269,7 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
         return func.fromVal(args[0].value);
       }
     } else {
-      throw new Error(`tried to call non-function: ${func.ty}`);
+      throw this.makeError(`tried to call non-function: ${func.ty}`, node.func);
     }
   }
 
@@ -1096,11 +1294,11 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
         if (rhs.isOfType(BoolT)) {
           return rhs;
         } else {
-          throw new Error(`tried to AND non-boolean: ${rhs}`);
+          throw this.makeError(`tried to AND non-boolean: ${rhs}`, node.rhs);
         }
       }
     } else {
-      throw new Error(`tried to AND non-boolean: ${lhs}`);
+      throw this.makeError(`tried to AND non-boolean: ${lhs}`, node.lhs);
     }
   }
 
@@ -1115,11 +1313,11 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
         if (rhs.isOfType(BoolT)) {
           return rhs;
         } else {
-          throw new Error(`tried to OR non-boolean: ${rhs}`);
+          throw this.makeError(`tried to OR non-boolean: ${rhs}`, node.rhs);
         }
       }
     } else {
-      throw new Error(`tried to OR non-boolean: ${lhs}`);
+      throw this.makeError(`tried to OR non-boolean: ${lhs}`, node.lhs);
     }
   }
 
@@ -1142,7 +1340,10 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
         return CWSBool.FALSE;
       }
     } else {
-      throw new Error(`tried to check if value is in non-list/tuple: ${rhs}`);
+      throw this.makeError(
+        `tried to check if value is in non-list/tuple: ${rhs}`,
+        node.rhs
+      );
     }
   }
 
@@ -1154,9 +1355,10 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
     } else if (expr.isOfType(NoneT)) {
       return CWSBool.TRUE;
     } else {
-      throw new Error(
+      throw this.makeError(
         // @ts-ignore
-        `tried to negate on expression other than Bool or None: ${expr.ty}`
+        `tried to negate on expression other than Bool or None: ${expr.ty}`,
+        node.expr
       );
     }
   }
@@ -1200,8 +1402,9 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
   visitFailExpr(node: AST.FailExpr) {
     let result = this.visit<Value>(node.expr);
     if (!result.isOfType(ErrorT) && !result.isOfType(StringT)) {
-      throw new Error(
-        `tried to fail with value other than Error or String: ${result}`
+      throw this.makeError(
+        `tried to fail with value other than Error or String: ${result}`,
+        node.expr
       );
     } else {
       if (result.isOfType(StringT)) {
@@ -1251,7 +1454,10 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
     } else {
       let ty = this.visitType(node.ty);
       if (!(ty instanceof StructDefn)) {
-        throw new Error(`tried to instantiate non-struct type: ${ty}`);
+        throw this.makeError(
+          `tried to instantiate non-struct type: ${ty}`,
+          node.ty
+        );
       }
       let args: Arg[] = [];
       for (let m of node.args.toArray()) {
@@ -1317,6 +1523,7 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
   visitNoneLit(node: AST.NoneLit) {
     return None;
   }
+
   //endregion <LITERALS>
 }
 

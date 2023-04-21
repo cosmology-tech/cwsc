@@ -1,4 +1,5 @@
 import { ParserRuleContext } from 'antlr4ts';
+import { getPosition } from '@/util/position';
 
 export class AST {
   public $ctx: ParserRuleContext | null = null;
@@ -38,21 +39,25 @@ export class AST {
     return Array.from(this.walkAncestors());
   }
 
-  public nearestAncestorWhere(predicate: (x: AST) => boolean): AST | null {
+  public get ancestorsAndSelf(): AST[] {
+    return Array.from(this.walkAncestors(true));
+  }
+
+  public nearestAncestorWhere(predicate: (x: AST) => boolean): AST | undefined {
     for (const ancestor of this.walkAncestors()) {
       if (predicate(ancestor)) {
         return ancestor;
       }
     }
-    return null;
+    return undefined;
   }
 
   public nearestAncestorOfType<X extends AST>(
     astType: new (...args: any) => X
-  ): X | null {
+  ): X | undefined {
     return this.nearestAncestorWhere(
       (x) => x.constructor.name === astType.name
-    ) as X | null;
+    ) as X | undefined;
   }
 
   /// Breadth-first traversal of descendant nodes.
@@ -460,6 +465,7 @@ export class StructBinding extends AST {
 }
 
 export type LetBinding = IdentBinding | TupleBinding | StructBinding;
+
 export class ConstStmt extends AST {
   constructor(public name: Ident, public expr: Expr) {
     super();
@@ -877,6 +883,12 @@ export class FailStmt extends AST {
 }
 
 export class Block extends List<Stmt> {}
+
+export class VisitorError extends Error {
+  constructor(message: string, public data: any) {
+    super(message + '\n\n' + JSON.stringify(data, null, 2));
+  }
+}
 
 export class CWScriptASTVisitor {
   visit<T = any>(node: AST): T {

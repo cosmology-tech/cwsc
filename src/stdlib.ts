@@ -1,6 +1,6 @@
-import * as AST from './ast';
-import { SymbolTable } from './util/symbol-table';
-import { CWScriptInterpreter } from 'interpreter';
+import * as AST from '@/ast';
+import { SymbolTable } from '@/util/symbol-table';
+import { CWScriptInterpreter } from '@/interpreter';
 
 export type TyConstructor<D extends Data<any> | Impl<any>> = new (
   ...args: any[]
@@ -49,6 +49,7 @@ export class Type<D extends Data | Impl = Data | Impl> extends SymbolTable {
   constructor(public name: string) {
     super();
   }
+
   defineMethod<S extends Value>(
     name: string,
     params: Array<[string, Type, Value] | [string, Type]>,
@@ -368,7 +369,9 @@ export class ListT<T extends Type = Type> extends Type<Impl<ListInstance<T>>> {
 
 export interface Indexable<T extends Type = Type> {
   getIndex(args: Arg[]): Value<T>;
+
   setIndex(args: Arg[], val: Value<T>): void;
+
   removeIndex?(args: Arg[]): void;
 }
 
@@ -378,6 +381,7 @@ export interface Sized {
 
 export class SizedIndexableIter<T extends Type = Type> implements CWSIter<T> {
   public ix: number = 0;
+
   constructor(public parent: Indexable<T> & Sized) {}
 
   next(): Value<T> | undefined {
@@ -608,6 +612,7 @@ export class StateItem extends SymbolTable {
     super();
   }
 }
+
 export class StateMap extends SymbolTable {
   constructor(
     public prefix: string,
@@ -1013,6 +1018,7 @@ export function operator<O extends AST.Op>(op: O): OperatorKey<O> {
 
 export class CWSString extends Type<Data<string>> {
   static TYPE = new CWSString();
+
   constructor() {
     super('String');
   }
@@ -1023,8 +1029,10 @@ export class CWSString extends Type<Data<string>> {
 }
 
 export const StringT = CWSString.TYPE;
+
 export class CWSAddress extends Type<Data<string>> {
   static TYPE = new CWSAddress();
+
   constructor() {
     super('Address');
     this.inheritMethodsFrom(StringT);
@@ -1051,6 +1059,7 @@ export const AddressT = CWSAddress.TYPE;
 
 export class CWSDec extends Type<Data<string>> {
   static TYPE = new CWSDec();
+
   constructor() {
     super('Dec');
   }
@@ -1060,6 +1069,7 @@ export const DecT = CWSDec.TYPE;
 
 export class CWSBinary extends Type<Data<string>> {
   static TYPE = new CWSBinary();
+
   constructor() {
     super('Binary');
   }
@@ -1077,6 +1087,7 @@ export enum IntSize {
 
 export class CWSInt extends Type<Data<bigint>> {
   static TYPE = new CWSInt();
+
   constructor() {
     super('Int');
   }

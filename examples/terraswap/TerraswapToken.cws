@@ -131,13 +131,12 @@ contract TerraswapToken implements CW20 {
   // defining.
   fn create_accounts!($state, accounts: CW20.Coin[]) -> Int {
     let total_supply = 0
-    return total_supply
     for row in accounts {
       let addr = Address!(row.address)
       $state.balances[addr] = row.amount
       total_supply += row.amount
     }
-    return 5000
+    return total_supply
   }
 
   // the #instantiate definition acts like the "constructor" and is called
@@ -166,8 +165,11 @@ contract TerraswapToken implements CW20 {
 	  let mint = MinterData(Address!(mint.minter), mint.cap)
     }
 
-	let a = TokenInfo(name, symbol, decimals, U128(total_supply), mint)
-	$state.token_info = a
+    TokenInfo(name,
+      symbol,
+        decimals, U128(total_supply), mint)[23]
+
+	$state.token_info = TokenInfo(name, symbol, decimals, U128(total_supply), mint)
   }
 
   exec #transfer(recipient: String, amount: Int) {

@@ -5,36 +5,35 @@ options {
 }
 
 // Files contain 1 or more topLevelStatement
-sourceFile: topLevelStmt* EOF;
+sourceFile: (topLevelStmt | SEMI)* EOF;
 
 topLevelStmt:
-	importStmt | contractDefn | interfaceDefn | constStmt_;
+	importStmt | contractDefn | interfaceDefn | stmt;
 
 // Contract Block
 contractDefn:
+	(ann+=annot)*
     CONTRACT (name = ident) (
         EXTENDS (base=typePath)
     )? (IMPLEMENTS (interfaces+=typePath))? (body=contractBlock);
 
 // Interface
 interfaceDefn:
+	(ann+=annot)*
     INTERFACE (name = ident) (
         EXTENDS (base=typePath)
     )? (body=contractBlock);
-
-// Tests
-
 
 contractBlock: LBRACE (body+=contractItem)* RBRACE;
 
 // Import Statement
 importStmt:
 	// import * from "..."
-    IMPORT MUL FROM (src = StringLiteral) SEMI? # ImportAllStmt
+    IMPORT MUL FROM (src = StringLiteral) # ImportAllStmt
     // import { a } from "..."
     | IMPORT (
         (LBRACE (items += ident) (COMMA items += ident)* RBRACE)
-    ) FROM (src = StringLiteral) SEMI? # ImportItemsStmt;
+    ) FROM (src = StringLiteral) # ImportItemsStmt;
 
 contractItem:
     typeDefn
@@ -55,7 +54,7 @@ contractItem:
     | replyDefn;
 
 // a[?] : b [= c]
-param: (name = ident) (optional=QUEST)? (COLON (ty = typeExpr) (EQ default=expr)?)?;
+param: (ann+=annot)* (name = ident) (optional=QUEST)? (COLON (ty = typeExpr) (EQ default=expr)?)?;
 paramList: param (COMMA param)*;
 fnParams:
 	LPAREN ((params+=param) (COMMA params+=param)*)? RPAREN;
@@ -139,25 +138,25 @@ typeAliasDefn: TYPE (name = ident) EQ (value = typeExpr);
 // Functions
 fnDefn: FN (name = ident) (fallible=BANG)? params=fnParams (ARROW retTy=typeExpr)? body=block;
 
-annot: AT (path = typePath) (LPAREN (args+=arg)? RPAREN)?;
+annot: AT (isTag=AT)? (path = typePath) (LPAREN (args+=arg)? RPAREN)?;
 
 callOptions: (LBRACE ((memberVal) (COMMA memberVal)* COMMA?)? RBRACE);
 
 // Statements
-stmt:
-    (ann+=annot)* debugStmt_ SEMI? 		# DebugStmt
-	| (ann+=annot)* letStmt_ SEMI?           # LetStmt
-    | (ann+=annot)* constStmt_ SEMI?	   # ConstStmt
-    | (ann+=annot)* assignStmt_ SEMI?     # AssignStmt
-    | (ann+=annot)* ifStmt_ SEMI?         # IfStmt
-    | (ann+=annot)* forStmt_ SEMI?        # ForStmt
-    | (ann+=annot)* EXEC_NOW expr (options=callOptions)? SEMI? # ExecStmt
-    | (ann+=annot)* DELEGATE_EXEC HASH expr SEMI? # DelegateExecStmt
-    | (ann+=annot)* INSTANTIATE_NOW (new=HASH)? expr (options=callOptions)? SEMI? # InstantiateStmt
-    | (ann+=annot)* EMIT expr SEMI?       # EmitStmt
-    | (ann+=annot)* RETURN expr (semi=SEMI)?      # ReturnStmt
-    | (ann+=annot)* FAIL expr (semi=SEMI)?        # FailStmt
-    | (ann+=annot)* expr SEMI?             # ExprStmt;
+stmt: annot block # AnnotBlockStmt
+    | (ann+=annot)* debugStmt_ 		# DebugStmt
+	| (ann+=annot)* letStmt_           # LetStmt
+    | (ann+=annot)* constStmt_	   # ConstStmt
+    | (ann+=annot)* assignStmt_     # AssignStmt
+    | (ann+=annot)* ifStmt_         # IfStmt
+    | (ann+=annot)* forStmt_        # ForStmt
+    | (ann+=annot)* (defer=DEFER)? EXEC_NOW expr (options=callOptions)? # ExecStmt
+    | (ann+=annot)* (defer=DEFER)? DELEGATE_EXEC HASH expr # DelegateExecStmt
+    | (ann+=annot)* (defer=DEFER)? INSTANTIATE_NOW (new=HASH)? expr (options=callOptions)? # InstantiateStmt
+    | (ann+=annot)* (defer=DEFER)? EMIT expr       # EmitStmt
+    | (ann+=annot)* RETURN expr      # ReturnStmt
+    | (ann+=annot)* FAIL expr        # FailStmt
+    | (ann+=annot)* expr             # ExprStmt;
 
 debugStmt_: DEBUG (block | stmt)?;
 
@@ -210,7 +209,7 @@ expr:
     | expr OR (rhs=expr)                  # OrExpr
     | ifStmt_ # IfExpr
     | QUERY_NOW expr # QueryNowExpr
-    | FAIL expr (semi=SEMI) # FailExpr
+    | FAIL expr # FailExpr
     | closure # ClosureExpr
     | LBRACK ((items+=expr) (COMMA (items+=expr))*)? RBRACK # TupleExpr
     | typeExpr? LBRACE ((members+=memberVal) (COMMA members+=memberVal)* COMMA?)? RBRACE # StructExpr
@@ -224,7 +223,7 @@ closureParams: BAR ((params+=param) (COMMA (params+=param))*)? BAR;
 closure:
 	(fallible=BANG)? (params=closureParams) (((ARROW retTy=typeExpr)? block) | stmt);
 
-block: LBRACE (body+=stmt)* RBRACE;
+block: LBRACE ((body+=stmt) | SEMI)* RBRACE;
 tryCatchElseExpr_: TRY (body=block) (catches+=catchClause)* (else_=elseClause)?;
 catchClause:
 	CATCH (ty=typeExpr) (body=block) # Catch
