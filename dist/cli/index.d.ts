@@ -1,1 +1,1 @@
-export declare function run(argv: string[]): void;
+export { run } from '@oclif/core';

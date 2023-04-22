@@ -6,17 +6,21 @@
   "typings": "dist/index.d.ts",
   "type": "commonjs",
   "files": [
+    "bin",
     "dist",
-    "src"
+    "src",
+    "/oclif.manifest.json"
   ],
   "engines": {
     "node": ">=10"
   },
   "bin": {
-    "cwsc": "bin/cwsc"
+    "cwsc": "./bin/run"
   },
   "scripts": {
-    "build": "tsc --module commonjs && webpack --mode production",
+    "prepack": "yarn build && oclif manifest",
+    "postpack": "shx rm -f oclif.manifest.json",
+    "build": "shx rm -rf dist && tsc --module commonjs && webpack --mode production",
     "build:types": "tsc --declaration --emitDeclarationOnly",
     "format": "prettier --check ./src/**/*.ts",
     "format:fix": "prettier --write ./src/**/*.ts",
@@ -48,32 +52,37 @@
   },
   "author": "Terran One LLC",
   "module": "dist/cwsc.esm.js",
-  "size-limit": [
-    {
-      "path": "dist/cwsc.cjs.production.min.js",
-      "limit": "10 KB"
-    },
-    {
-      "path": "dist/cwsc.esm.js",
-      "limit": "10 KB"
-    }
-  ],
+  "oclif": {
+    "bin": "cwsc",
+    "dirname": "cwsc",
+    "commands": "./dist/cli/commands",
+    "plugins": [
+      "@oclif/plugin-help",
+      "@oclif/plugin-autocomplete"
+    ],
+    "topicSeparator": " ",
+    "topics": {}
+  },
   "devDependencies": {
     "@size-limit/preset-small-lib": "^7.0.8",
     "@types/chalk": "^2.2.0",
     "@types/cytoscape": "^3.19.4",
     "@types/cytoscape-dagre": "^2.3.0",
     "@types/ejs": "^3.1.0",
+    "@types/fs-extra": "^11.0.1",
     "@types/jest": "^27.5.0",
     "@types/lodash": "^4.14.178",
+    "@types/omelette": "^0.4.2",
     "@types/plist": "^3.0.2",
     "antlr4ts-cli": "^0.5.0-alpha.4",
     "eslint": "^8.12.0",
     "husky": "^7.0.4",
     "jest": "^28.1.0",
+    "oclif": "^3",
     "path-browserify": "^1.0.1",
     "plist": "^3.0.6",
     "prettier": "^2.6.1",
+    "shx": "^0.3.4",
     "size-limit": "^7.0.8",
     "terser-webpack-plugin": "4",
     "tmlanguage-generator": "^0.4.0",
@@ -89,13 +98,16 @@
     "webpack-cli": "^4.9.2"
   },
   "dependencies": {
-    "@types/omelette": "^0.4.2",
+    "@oclif/core": "^2",
+    "@oclif/plugin-autocomplete": "^2.1.9",
+    "@oclif/plugin-help": "^5",
     "antlr4ts": "^0.5.0-alpha.4",
     "assert": "^2.0.0",
     "buffer": "^6.0.3",
     "chalk": "^5.2.0",
     "commander": "^9.0.0",
     "ejs": "^3.1.6",
+    "fs-extra": "^11.1.1",
     "immutable": "^4.0.0",
     "listr": "^0.14.3",
     "lodash": "^4.17.21",
