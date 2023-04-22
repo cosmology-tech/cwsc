@@ -41,7 +41,7 @@ export abstract class BaseCommand<T extends typeof Command> extends Command {
   static baseFlags = {
     verbose: Flags.boolean({
       char: 'V',
-      description: 'Show verbose output - turns on all logs',
+      description: 'Show verbose output - turns on all logs and diagnostics.',
       default: false,
     }),
     silent: Flags.boolean({
@@ -51,13 +51,20 @@ export abstract class BaseCommand<T extends typeof Command> extends Command {
       aliases: ['quiet'],
       exclusive: ['verbose'],
     }),
+    'show-hints': Flags.boolean({
+      description: 'Show CWScript "hint" and "info" diagnostics when parsing.',
+      default: false,
+      exclusive: ['silent'],
+    }),
+    'show-warnings': Flags.boolean({
+      description: 'Show CWScript "warning" diagnostics when parsing.',
+      default: true,
+      exclusive: ['silent'],
+    }),
     logs: Flags.string({
-      char: 'L',
-      description: 'Show logs of the specified level',
-      delimiter: ',',
-      multiple: true,
-      options: ['none', 'info', 'debug', 'warn', 'error'],
-      default: ['warn', 'error'],
+      description: 'Show compiler tool logs above a certain level',
+      options: ['NONE', 'INFO', 'DEBUG', 'WARNING', 'ERROR'],
+      default: ['ERROR'],
       exclusive: ['silent'],
     }),
     'log-file': Flags.file({
@@ -78,15 +85,15 @@ export abstract class BaseCommand<T extends typeof Command> extends Command {
         'Specify a path to `cwsconfig.toml` to use base compiler tool settings.',
       env: 'CWS_CONFIG',
     }),
-    X: Flags.custom<ConfigKV>({
-      multiple: true,
-      description: `Set a config value temporarily for this command. This flag can be used multiple times to set multiple values.`,
-      helpLabel: '-Xkey value',
-      parse: async (input: string) => {
-        const [key, value] = input.split('=');
-        return new ConfigKV(key, value);
-      },
-    })(),
+    // set: Flags.custom<ConfigKV>({
+    //   multiple: true,
+    //   description: `Set a config value temporarily for this command. This flag can be used multiple times to set multiple values.`,
+    //   helpLabel: '-Xset=value',
+    //   parse: async (input: string) => {
+    //     const [key, value] = input.split('=');
+    //     return new ConfigKV(key, value);
+    //   },
+    // })(),
   };
 
   protected async catch(err: Error & { exitCode?: number }): Promise<any> {
@@ -100,5 +107,5 @@ export abstract class BaseCommand<T extends typeof Command> extends Command {
     return super.finally(_);
   }
 
-  abstract run(): Promise<FlagsT<T>>;
+  abstract run(): Promise<any>;
 }

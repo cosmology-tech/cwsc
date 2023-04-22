@@ -1,5 +1,7 @@
 import { Command, Args, Flags } from '@oclif/core';
 import { BaseCommand, FlagsT, ArgsT } from '../BaseCommand';
+import { CWScriptParser } from '../../parser';
+import fs from 'fs';
 
 export default class ParseCommand extends BaseCommand<typeof ParseCommand> {
   static description = 'Parse a CWScript source file into AST.';
@@ -26,22 +28,25 @@ export default class ParseCommand extends BaseCommand<typeof ParseCommand> {
   static args = {
     file: Args.file({
       description:
-        'File to parse into AST; if not provided, can read from <STDIN>.',
-      required: true,
+        'File to parse into AST. If not provided, will read from <STDIN>.',
+      required: false,
+      exists: true,
     }),
   };
 
-  public async run(): Promise<FlagsT<typeof ParseCommand>> {
-    await this.init();
-    for (const [flag, value] of Object.entries(this.flags)) {
-      this.log(`${flag}: ${value}`);
+  public async run() {
+    const { args, flags } = await this.parse(ParseCommand);
+    if (args.file) {
+      this.debug(`Parsing ${args.file} into ${flags.format}...`);
+      let sourceInput = fs.readFileSync(args.file, 'utf8');
+      let res = CWScriptParser.parse(sourceInput);
+
+      if (!res.ast) {
+        this.error('Failed to parse the source file.');
+      }
+      if (flags.out) {
+        fs.writeFileSync(flags.out, res);
+      }
     }
-
-    return this.flags;
   }
-
-  // async run(): Promise<void> {
-  //   const { args, flags } = await this.parse(ParseCommand);
-  //   console.log(args, flags);
-  // }
 }

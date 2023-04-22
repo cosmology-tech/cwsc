@@ -18,7 +18,7 @@
     "cwsc": "./bin/run"
   },
   "scripts": {
-    "prepack": "yarn build && oclif manifest",
+    "prepack": "bun run build && oclif manifest",
     "postpack": "shx rm -f oclif.manifest.json",
     "build": "shx rm -rf dist && tsc --module commonjs && webpack --mode production",
     "build:types": "tsc --declaration --emitDeclarationOnly",
@@ -28,13 +28,13 @@
     "lint:fix": "eslint src --ext .js,.ts --fix",
     "parse": "ts-node src/parser/index.ts",
     "viz": "ts-node src/vizserver.ts",
-    "cwsc": "ts-node src/cli.ts",
+    "cli": "./bin/dev",
     "size": "size-limit",
     "analyze": "size-limit --why",
     "gen:tm-grammar": "ts-node ./scripts/gen-tm-grammar.ts",
     "antlr-lexer": "antlr4ts ./grammar/CWScriptLexer.g4 -o ./src",
     "antlr-parser": "antlr4ts -visitor ./grammar/CWScriptParser.g4 -o ./src -lib ./src/grammar",
-    "antlr": "npm run antlr-lexer && npm run antlr-parser",
+    "antlr": "bun run antlr-lexer && bun run antlr-parser",
     "doc": "typedoc",
     "prepublishOnly": "npm run build",
     "test": "jest __tests__"
