@@ -341,8 +341,14 @@ export class CWSInterpreter extends SymbolTable {
 
     if (data.isOk()) {
       let ast = data.unwrap().data;
+      console.log(ast);
       this.visitor = new CWSInterpreterVisitor(this, sourceText, file);
       this.visitor.visit(ast); // run
+    } else {
+      data.diagnostics.forEach((d) => {
+        console.error(d);
+      });
+      throw new Error(`Error parsing source code: ${file}`);
     }
   }
 

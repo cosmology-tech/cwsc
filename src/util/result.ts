@@ -66,10 +66,11 @@ export class DgnsResult<T, E = any, R extends Result<T, E> = Result<T, E>> {
   andThen<U>(f: (r: T, d: Diagnostic[]) => DgnsResult<U>): DgnsResult<U, E> {
     if (this.isOk()) {
       let x = f(this.res.val, this.diagnostics);
-      return new DgnsResult(x.res, [...this.diagnostics, ...x.diagnostics]);
-    } else {
-      return DgnsResult.Err<U, E>(this.res.val as E, this.diagnostics);
+      if (x instanceof DgnsResult) {
+        return new DgnsResult(x.res, [...this.diagnostics, ...x.diagnostics]);
+      }
     }
+    return DgnsResult.Err<U, E>(this.res.val as E, this.diagnostics);
   }
 
   unwrap(): T {
