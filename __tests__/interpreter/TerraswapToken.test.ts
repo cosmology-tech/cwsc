@@ -1,8 +1,4 @@
-import {
-  ContractInstance,
-  CWScriptInterpreter,
-  Env,
-} from '../../src/interpreter';
+import { ContractInstance, CWSInterpreter, Env } from '../../src/interpreter';
 import {
   ContractDefn,
   ContractReference,
@@ -29,7 +25,7 @@ describe('Interpreter: TerraswapToken', () => {
   it('should be able to parse and interpret a TerraswapToken contract', () => {
     const sourceText = fs.readFileSync(TERRASWAP_TOKEN_FILE, 'utf8');
 
-    const interpreter = new CWScriptInterpreter({
+    const interpreter = new CWSInterpreter({
       sources: {
         [TERRASWAP_TOKEN_FILE]: sourceText,
       },

@@ -889,7 +889,7 @@ export class VisitorError extends Error {
   }
 }
 
-export class CWScriptASTVisitor {
+export class CWSASTVisitor {
   visit<T = any>(node: AST): T {
     // @ts-ignore
     let visitFn = this[`visit${node.constructor.name}`];

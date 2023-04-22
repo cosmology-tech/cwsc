@@ -129,13 +129,12 @@ contract TerraswapToken implements CW20 {
   // we can access the special $-message context variables in a function by
   // passing it in. it must be the first argument of the function you are
   // defining.
-  fn create_accounts!($state, accounts: CW20.Coin[]) -> Int {
+  fn create_accounts!state, accounts: CW20.Coin[]) -> Int {
     let total_supply = 0
     for row in accounts {
       let addr = Address!(row.address)
       $state.balances[addr] = row.amount
       total_supply += row.amount
-    }
     return total_supply
   }
 
@@ -143,7 +142,7 @@ contract TerraswapToken implements CW20 {
   // when the contract is first instantiated.
   // note that the "#" is part of the name, and "instantiate" is a reserved
   // keyword, so they cannot use it as its own function
-  #instantiate(
+  #instantiate
     name: String,
     symbol: String,
     decimals: U8,

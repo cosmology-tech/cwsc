@@ -6,7 +6,7 @@ import { CWScriptParserVisitor as ANTLRCWScriptParserVisitor } from '../grammar/
 import * as AST from '../ast';
 import { Expr } from '../ast';
 
-export class CWScriptASTBuilderVisitor
+export class CWSASTBuilderVisitor
   extends AbstractParseTreeVisitor<AST.AST>
   implements ANTLRCWScriptParserVisitor<AST.AST>
 {

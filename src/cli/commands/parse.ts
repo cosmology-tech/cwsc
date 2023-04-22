@@ -1,6 +1,6 @@
 import { Command, Args, Flags } from '@oclif/core';
 import { BaseCommand, FlagsT, ArgsT } from '../BaseCommand';
-import { CWScriptParser } from '../../parser';
+import { CWSParser } from '../../parser';
 import fs from 'fs';
 import path from 'path';
 import { DiagnosticSeverity } from 'vscode-languageserver';
@@ -51,7 +51,7 @@ export default class ParseCommand extends BaseCommand<typeof ParseCommand> {
 
     if (!res.ast) {
       for (let err of res.diagnostics.filter(
-        (x) => x.severity === DiagnosticSeverity.Error
+        (x: { severity: number }) => x.severity === DiagnosticSeverity.Error
       )) {
         this.log(
           errorReportWithCodeSnippet(path.resolve(args.file), sourceText, err)

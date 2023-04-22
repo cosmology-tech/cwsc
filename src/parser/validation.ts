@@ -2,19 +2,73 @@ import { CWScriptParserListener } from '../grammar/CWScriptParserListener';
 import * as P from '../grammar/CWScriptParser';
 
 import { SymbolTable } from '../util/symbol-table';
-import { ParserRuleContext } from 'antlr4ts';
+import { ANTLRErrorListener, ParserRuleContext } from 'antlr4ts';
 import { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver';
 import { getPosition, TextView } from '../util/position';
 import { SourceFileContext } from '../grammar/CWScriptParser';
 import { ParseTreeWalker } from 'antlr4ts/tree/ParseTreeWalker';
+import { RecognitionException } from 'antlr4ts/RecognitionException';
 
-export class ValidationStage implements CWScriptParserListener {
-  protected scopes: SymbolTable[] = [];
-  protected depth: {
-    [key: string]: number;
-  } = {};
+export abstract class CWSDiagnosticsCollector {
+  public diagnostics: Diagnostic[] = [];
 
-  constructor(public validator: CWScriptParseTreeValidator) {}
+  public get errors(): Diagnostic[] {
+    return this.diagnostics.filter(
+      (d) => d.severity === DiagnosticSeverity.Error
+    );
+  }
+
+  public get warnings(): Diagnostic[] {
+    return this.diagnostics.filter(
+      (d) => d.severity === DiagnosticSeverity.Warning
+    );
+  }
+
+  public get infos(): Diagnostic[] {
+    return this.diagnostics.filter(
+      (d) => d.severity === DiagnosticSeverity.Information
+    );
+  }
+
+  public get hints(): Diagnostic[] {
+    return this.diagnostics.filter(
+      (d) => d.severity === DiagnosticSeverity.Hint
+    );
+  }
+}
+
+export class CWSSyntaxErrorListener
+  extends CWSDiagnosticsCollector
+  implements ANTLRErrorListener<any>
+{
+  public diagnostics: Diagnostic[] = [];
+
+  syntaxError(
+    recognizer: any,
+    offendingSymbol: any,
+    line: number,
+    charPositionInLine: number,
+    msg: string,
+    e: RecognitionException | undefined
+  ) {
+    this.diagnostics.push({
+      severity: DiagnosticSeverity.Error,
+      message: 'SyntaxError: ' + msg,
+      range: {
+        start: { line: line - 1, character: charPositionInLine },
+        end: { line: line - 1, character: charPositionInLine },
+      },
+    });
+  }
+}
+
+export class CWSValidation
+  extends CWSDiagnosticsCollector
+  implements CWScriptParserListener
+{
+  constructor(public env: SourceValidationEnv) {
+    super();
+  }
 
   enterEveryRule(ctx: ParserRuleContext) {}
 
@@ -37,7 +91,7 @@ export class ValidationStage implements CWScriptParserListener {
   }
 }
 
-export class CheckSymbolsDeclaredBeforeUse extends ValidationStage {
+export class CheckSymbolsDeclaredBeforeUse extends CWSValidation {
   enterIdentExpr(ctx: P.IdentExprContext) {
     if (!this.scope.hasSymbol(ctx.ident().text)) {
       this.validator.addError(
@@ -83,7 +137,7 @@ export class CheckSymbolsDeclaredBeforeUse extends ValidationStage {
   }
 }
 
-export class CWScriptParseTreeValidator implements CWScriptParserListener {
+export class CWSParseTreeValidator implements CWScriptParserListener {
   public started: boolean = false;
   public completed: boolean = false;
   public diagnostics: Diagnostic[] = [];

@@ -218,6 +218,11 @@ export class TextView {
       },
     };
   }
+
+  public rangeFromNodeCtx(ctx: ParserRuleContext): Range | null {
+    let pos = getPosition(ctx);
+    return this.range(pos.start, pos.end);
+  }
 }
 
 export function getPosition(ctx: ParserRuleContext): NodePosition {

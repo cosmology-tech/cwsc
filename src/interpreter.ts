@@ -54,7 +54,7 @@ import {
   EventMsg,
   EventT,
 } from './stdlib';
-import { CWScriptParser } from './parser';
+import { CWSParser } from './parser';
 import { getPosition, TextView } from './util/position';
 import chalk from 'chalk';
 
@@ -87,7 +87,7 @@ function operator<O extends AST.Op>(op: O): OperatorKey<O> {
 
 //region <INTERPRETER>
 
-export interface CWScriptInterpreterContext {
+export interface CWSInterpreterContext {
   sources: {
     [filename: string]: string;
   };
@@ -250,7 +250,7 @@ export class ContractState extends Value {
   } = {};
 
   constructor(
-    public interpreter: CWScriptInterpreter,
+    public interpreter: CWSInterpreter,
     public contract: ContractDefn
   ) {
     // get all the state items and state maps
@@ -299,7 +299,7 @@ export class ContractInstance<
 > extends Value<C, null> {
   public state: ContractState;
 
-  constructor(public interpreter: CWScriptInterpreter, public ty: C) {
+  constructor(public interpreter: CWSInterpreter, public ty: C) {
     super(ty, null);
     this.state = new ContractState(interpreter, ty);
   }
@@ -325,10 +325,10 @@ export class ContractInstance<
   }
 }
 
-export class CWScriptInterpreter extends SymbolTable {
-  public visitor?: CWScriptInterpreterVisitor;
+export class CWSInterpreter extends SymbolTable {
+  public visitor?: CWSInterpreterVisitor;
 
-  constructor(public ctx: CWScriptInterpreterContext) {
+  constructor(public ctx: CWSInterpreterContext) {
     super({}, new SymbolTable(ctx.env));
     for (let file in ctx.sources) {
       let sourceText = this.ctx.sources[file];
@@ -337,13 +337,13 @@ export class CWScriptInterpreter extends SymbolTable {
   }
 
   runCode(sourceText: string, file: string = ':memory:') {
-    let { ast, diagnostics } = CWScriptParser.parse(sourceText);
+    let data = new CWSParser(sourceText).parse();
 
-    if (!ast) {
-      return;
+    if (data.isOk()) {
+      let ast = data.unwrap().data;
+      this.visitor = new CWSInterpreterVisitor(this, sourceText, file);
+      this.visitor.visit(ast); // run
     }
-    this.visitor = new CWScriptInterpreterVisitor(this, sourceText, file);
-    this.visitor.visit(ast); // run
   }
 
   callFn(fn: FnDefn, args: Arg[], scope?: SymbolTable) {
@@ -372,7 +372,7 @@ export class DebugCall extends FnDefn {
     super('debug', true, [], NoneT);
   }
 
-  call(interpreter: CWScriptInterpreter, node?: AST.AST) {
+  call(interpreter: CWSInterpreter, node?: AST.AST) {
     debugger;
   }
 }
@@ -383,7 +383,7 @@ export class InterpreterError extends Error {
   }
 }
 
-export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
+export class CWSInterpreterVisitor extends AST.CWSASTVisitor {
   public ctx: any;
   public tv: TextView;
   scopes: SymbolTable[];
@@ -403,7 +403,7 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
   public file: string;
 
   constructor(
-    public interpreter: CWScriptInterpreter,
+    public interpreter: CWSInterpreter,
     public sourceText: string,
     file: string
   ) {
