@@ -1,6 +1,5 @@
-import * as AST from '@/ast';
-import { SymbolTable } from '@/util/symbol-table';
-import { CWScriptInterpreter } from '@/interpreter';
+import * as AST from './ast';
+import { SymbolTable } from './util/symbol-table';
 
 export type TyConstructor<D extends Data<any> | Impl<any>> = new (
   ...args: any[]

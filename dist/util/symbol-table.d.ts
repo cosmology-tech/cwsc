@@ -1,4 +1,4 @@
-declare type SymbolEnv = {
+type SymbolEnv = {
     [key: string]: any;
 };
 export declare class SymbolTable {
@@ -6,6 +6,7 @@ export declare class SymbolTable {
     symbols: SymbolEnv;
     constructor(symbols?: SymbolEnv, parent?: SymbolTable | undefined);
     getSymbol<T = any>(name: string): T;
+    getOwnSymbol<T = any>(name: string): T;
     setSymbol(name: string, value: any): void;
     firstTableWithSymbol(name: string): SymbolTable | undefined;
     hasSymbol(name: string): boolean;

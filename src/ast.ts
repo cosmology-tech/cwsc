@@ -1,5 +1,4 @@
 import { ParserRuleContext } from 'antlr4ts';
-import { getPosition } from '@/util/position';
 
 export class AST {
   public $ctx: ParserRuleContext | null = null;

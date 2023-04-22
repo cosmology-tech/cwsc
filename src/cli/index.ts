@@ -2,14 +2,16 @@ import { program, Command } from 'commander';
 
 import commands from './commands';
 import * as logger from '../util/logger';
+import { completions } from './ui/completions';
+
+completions.init();
 
 export function run(argv: string[]): void {
   process.on('unhandledRejection', (error: Error) => {
     if ((program as any).verbose) {
       console.error(error);
-      logger.error(error.toString());
     } else {
-      logger.error(error.toString() + '; use --verbose for more details');
+      console.error(error.toString() + '; use --verbose for more details');
     }
   });
   try {
@@ -24,6 +26,5 @@ export function run(argv: string[]): void {
     program.parse(argv);
   } catch (e) {
     console.error(e);
-    logger.error((e as Error).message);
   }
 }

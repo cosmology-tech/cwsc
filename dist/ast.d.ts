@@ -9,8 +9,9 @@ export declare class AST {
     get children(): AST[];
     walkAncestors(includeSelf?: boolean): IterableIterator<AST>;
     get ancestors(): AST[];
-    nearestAncestorWhere(predicate: (x: AST) => boolean): AST | null;
-    nearestAncestorOfType<X extends AST>(astType: new (...args: any) => X): X | null;
+    get ancestorsAndSelf(): AST[];
+    nearestAncestorWhere(predicate: (x: AST) => boolean): AST | undefined;
+    nearestAncestorOfType<X extends AST>(astType: new (...args: any) => X): X | undefined;
     walkDescendantsBFS(): IterableIterator<AST>;
     walkDescendants(): IterableIterator<AST>;
     walkDescendantsLF(): IterableIterator<AST>;
@@ -54,7 +55,7 @@ export declare class Ident extends AST {
     value: string;
     constructor(value: string);
 }
-export declare type TopLevelStmt = ContractDefn | InterfaceDefn | TypeDefn | ConstStmt;
+export type TopLevelStmt = ContractDefn | InterfaceDefn | TypeDefn | ConstStmt;
 export declare class SourceFile extends List<TopLevelStmt> {
 }
 export declare class ContractDefn extends AST {
@@ -104,7 +105,7 @@ export declare class TypeAliasDefn extends AST {
     value: TypeExpr;
     constructor(name: Ident, value: TypeExpr);
 }
-export declare type TypeDefn = StructDefn | EnumDefn | TypeAliasDefn;
+export type TypeDefn = StructDefn | EnumDefn | TypeAliasDefn;
 export declare class Param extends AST {
     name: Ident;
     ty: TypeExpr | null;
@@ -112,7 +113,7 @@ export declare class Param extends AST {
     default_: Expr | null;
     constructor(name: Ident, ty: TypeExpr | null, optional: boolean, default_: Expr | null);
 }
-export declare type ContractItem = any;
+export type ContractItem = any;
 export declare class ContractBlock extends List<ContractItem> {
 }
 export declare class ImportAllStmt extends AST {
@@ -225,7 +226,7 @@ export declare class StructBinding extends AST {
     bindings: List<IdentBinding>;
     constructor(bindings: List<IdentBinding>);
 }
-export declare type LetBinding = IdentBinding | TupleBinding | StructBinding;
+export type LetBinding = IdentBinding | TupleBinding | StructBinding;
 export declare class ConstStmt extends AST {
     name: Ident;
     expr: Expr;
@@ -264,7 +265,7 @@ export declare class IndexLHS extends AST {
     args: List<Expr>;
     constructor(obj: Expr, args: List<Expr>);
 }
-export declare type AssignLHS = IdentLHS | DotLHS | IndexLHS;
+export type AssignLHS = IdentLHS | DotLHS | IndexLHS;
 export declare class TupleExpr extends AST {
     exprs: List<Expr>;
     constructor(exprs: List<Expr>);
@@ -276,8 +277,8 @@ export declare class StructExpr extends AST {
 }
 export declare class MemberVal extends AST {
     name: Ident;
-    value: Expr;
-    constructor(name: Ident, value: Expr);
+    value: Expr | null;
+    constructor(name: Ident, value: Expr | null);
 }
 export declare class IfStmt extends AST {
     pred: Expr;
@@ -337,11 +338,7 @@ export declare enum Op {
     MINUS = "-",
     MUL = "*",
     DIV = "/",
-    MOD = "%",
-    IN = "in",
-    IS = "is",
-    AND = "and",
-    OR = "or"
+    MOD = "%"
 }
 export declare class BinOpExpr extends AST {
     lhs: Expr;
@@ -349,11 +346,26 @@ export declare class BinOpExpr extends AST {
     rhs: Expr;
     constructor(lhs: Expr, op: Op, rhs: Expr);
 }
+export declare class AndExpr extends AST {
+    lhs: Expr;
+    rhs: Expr;
+    constructor(lhs: Expr, rhs: Expr);
+}
+export declare class OrExpr extends AST {
+    lhs: Expr;
+    rhs: Expr;
+    constructor(lhs: Expr, rhs: Expr);
+}
 export declare class IsExpr extends AST {
     negative: boolean;
     lhs: Expr;
     rhs: TypeExpr;
     constructor(negative: boolean, lhs: Expr, rhs: TypeExpr);
+}
+export declare class InExpr extends AST {
+    lhs: Expr;
+    rhs: Expr;
+    constructor(lhs: Expr, rhs: Expr);
 }
 export declare class NoneCheckExpr extends AST {
     expr: Expr;
@@ -403,8 +415,8 @@ export declare class Grouped2Expr extends AST {
     expr: Expr;
     constructor(expr: Expr);
 }
-export declare type Expr = GroupedExpr | Grouped2Expr | DotExpr | AsExpr | IndexExpr | DColonExpr | FnCallExpr | NoneCheckExpr | ShortTryExpr | TryCatchElseExpr | NotExpr | QueryExpr | QueryNowExpr | FailExpr | UnitVariantExpr | IdentExpr | TupleExpr | StructExpr | Literal | Closure;
-export declare type TypeExpr = TypePath | TypeVariant | TypeLens | OptionT | ListT | TupleT | TypeDefn;
+export type Expr = GroupedExpr | Grouped2Expr | DotExpr | AsExpr | IndexExpr | DColonExpr | FnCallExpr | NoneCheckExpr | ShortTryExpr | TryCatchElseExpr | NotExpr | QueryExpr | QueryNowExpr | FailExpr | UnitVariantExpr | IdentExpr | TupleExpr | StructExpr | Literal | Closure;
+export type TypeExpr = TypePath | TypeVariant | TypeLens | OptionT | ListT | TupleT | TypeDefn;
 export declare enum Scope {
     INSTANTIATE = "instantiate",
     EXEC = "exec",
@@ -422,8 +434,8 @@ export declare class OptionT extends AST {
 }
 export declare class ListT extends AST {
     ty: TypeExpr;
-    size: number | null;
-    constructor(ty: TypeExpr, size: number | null);
+    len: number | null;
+    constructor(ty: TypeExpr, len: number | null);
 }
 export declare class TupleT extends AST {
     tys: List<TypeExpr>;
@@ -456,7 +468,11 @@ export declare class BoolLit extends Literal {
 export declare class NoneLit extends Literal {
     constructor();
 }
-export declare type Stmt = LetStmt | ConstStmt | AssignStmt | IfStmt | ForStmt | ExecStmt | DelegateExecStmt | InstantiateStmt | EmitStmt | ReturnStmt | FailStmt | Expr;
+export type Stmt = DebugStmt | LetStmt | ConstStmt | AssignStmt | IfStmt | ForStmt | ExecStmt | DelegateExecStmt | InstantiateStmt | EmitStmt | ReturnStmt | FailStmt | Expr;
+export declare class DebugStmt extends AST {
+    stmts: Stmt[];
+    constructor(stmts: Stmt[]);
+}
 export declare class ExecStmt extends AST {
     expr: Expr;
     options: List<MemberVal> | null;
@@ -485,6 +501,10 @@ export declare class FailStmt extends AST {
     constructor(expr: Expr);
 }
 export declare class Block extends List<Stmt> {
+}
+export declare class VisitorError extends Error {
+    data: any;
+    constructor(message: string, data: any);
 }
 export declare class CWScriptASTVisitor {
     visit<T = any>(node: AST): T;

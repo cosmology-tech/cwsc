@@ -1,1555 +1,1206 @@
-'use strict';
-var __createBinding =
-  (this && this.__createBinding) ||
-  (Object.create
-    ? function (o, m, k, k2) {
-        if (k2 === undefined) k2 = k;
-        var desc = Object.getOwnPropertyDescriptor(m, k);
-        if (
-          !desc ||
-          ('get' in desc ? !m.__esModule : desc.writable || desc.configurable)
-        ) {
-          desc = {
-            enumerable: true,
-            get: function () {
-              return m[k];
-            },
-          };
-        }
-        Object.defineProperty(o, k2, desc);
-      }
-    : function (o, m, k, k2) {
-        if (k2 === undefined) k2 = k;
-        o[k2] = m[k];
-      });
-var __setModuleDefault =
-  (this && this.__setModuleDefault) ||
-  (Object.create
-    ? function (o, v) {
-        Object.defineProperty(o, 'default', { enumerable: true, value: v });
-      }
-    : function (o, v) {
-        o['default'] = v;
-      });
-var __importStar =
-  (this && this.__importStar) ||
-  function (mod) {
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
     if (mod && mod.__esModule) return mod;
     var result = {};
-    if (mod != null)
-      for (var k in mod)
-        if (k !== 'default' && Object.prototype.hasOwnProperty.call(mod, k))
-          __createBinding(result, mod, k);
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
     __setModuleDefault(result, mod);
     return result;
-  };
-Object.defineProperty(exports, '__esModule', { value: true });
-exports.CWScriptInterpreterVisitor =
-  exports.Return =
-  exports.Failure =
-  exports.CWScriptInterpreter =
-  exports.STDLIB =
-  exports.Generic =
-  exports.UnwrapNone =
-  exports.Address =
-  exports.CWSString =
-  exports.U128 =
-  exports.U64 =
-  exports.U32 =
-  exports.U16 =
-  exports.U8 =
-  exports.None =
-  exports.StructInstance =
-  exports.ContractInstance =
-  exports.Arg =
-  exports.EnumVariantUnitDefn =
-  exports.EnumVariantStructDefn =
-  exports.EventMsg =
-  exports.ErrorMsg =
-  exports.QueryMsg =
-  exports.ExecMsg =
-  exports.InstantiateMsg =
-  exports.EventType =
-  exports.ErrorType =
-  exports.QueryMsgType =
-  exports.ExecMsgType =
-  exports.InstantiateMsgType =
-  exports.EnumDefn =
-  exports.StructDefn =
-  exports.FnDefn =
-  exports.StateMap =
-  exports.StateItem =
-  exports.MapKey =
-  exports.InterfaceDefn =
-  exports.ContractDefn =
-  exports.Bool =
-  exports.CWSNone =
-  exports.TupleInstance =
-  exports.ListInstance =
-  exports.IndexableValue =
-  exports.IndexableIter =
-  exports.ListT =
-  exports.TupleT =
-  exports.OptionT =
-  exports.Param =
-  exports.Value =
-  exports.Type =
-    void 0;
-const AST = __importStar(require('./ast'));
-const symbol_table_1 = require('./util/symbol-table');
-class Type extends symbol_table_1.SymbolTable {
-  constructor(name) {
-    super({});
-    this.name = name;
-  }
-  /**
-   * Checks if this <: other, i.e. if this can be converted to
-   * other without losing information.
-   */
-  isSubOf(other) {
-    return this.isEq(other) || other.isSuperOf(this);
-  }
-  isSuperOf(other) {
-    return this.isEq(other) || other.isSubOf(this);
-  }
-  isEq(other) {
-    // make sure all properties match
-    if (!(other instanceof this.constructor)) {
-      return false;
-    } else {
-      for (let key in this) {
-        if (this[key] !== other[key]) {
-          return false;
-        }
-      }
-      return true;
-    }
-  }
-  isCompatibleWith(other) {
-    return this.isSubOf(other) || other.isSubOf(this);
-  }
-  value(data) {
-    return new Value(this, data);
-  }
-  convertFrom(val) {
-    throw new Error(`Method not implemented.`);
-  }
-  convertInto(into, val) {
-    if (!this.canConvertInto(into)) {
-      throw new Error(`cannot convert ${this.name} into ${into.name}`);
-    }
-    return into.convertFrom(val);
-  }
-  canConvertFrom(other) {
-    if (this.convertibleFromTypes) {
-      return this.convertibleFromTypes().includes(other);
-    } else {
-      return other.canConvertInto(this);
-    }
-  }
-  canConvertInto(other) {
-    return other.canConvertFrom(this);
-  }
-  [operator(AST.Op.EQ)](lhs, rhs) {
-    // check if types are equal
-    console.warn("default implementation of operator '==' used");
-    if (lhs.ty.isEq(rhs.ty)) {
-      return Bool.TRUE;
-    } else {
-      return Bool.FALSE;
-    }
-  }
-  [operator(AST.Op.NEQ)](lhs, rhs) {
-    // check if types are equal
-    if (lhs.ty.isEq(rhs.ty)) {
-      return Bool.FALSE;
-    } else {
-      return Bool.TRUE;
-    }
-  }
-  callOperator(op, lhs, rhs) {
-    // check if types are equal
-    if (operator(op) in this) {
-      let opFn = this[operator(op)];
-      return opFn(lhs, rhs);
-    } else {
-      throw new Error(`operator ${op} not defined for type ${this.name}`);
-    }
-  }
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.CWScriptInterpreterVisitor = exports.InterpreterError = exports.DebugCall = exports.Return = exports.Failure = exports.CWScriptInterpreter = exports.ContractInstance = exports.ContractState = exports.ContractStateT = exports.StateMapAccessor = exports.buildQueryCtx = exports.buildMutCtx = exports.buildMutState = exports.buildCtxRes = exports.buildCtxInfo = exports.CoinListT = exports.buildCtxEnv = exports.ContextType = exports.idx = exports.args = exports.arg = void 0;
+const AST = __importStar(require("./ast"));
+const symbol_table_1 = require("./util/symbol-table");
+const stdlib_1 = require("./stdlib");
+const parser_1 = require("./parser");
+const position_1 = require("./util/position");
+const chalk_1 = __importDefault(require("chalk"));
+const path_1 = __importDefault(require("path"));
+//region <HELPER FUNCTIONS>
+function arg(val, name) {
+    return new stdlib_1.Arg(val, name);
 }
-exports.Type = Type;
-class Value extends symbol_table_1.SymbolTable {
-  constructor(ty, data) {
-    super({});
-    this.ty = ty;
-    this.data = data;
-  }
+exports.arg = arg;
+function args(a_pos = [], a_named = {}) {
+    return a_pos
+        .map((v) => arg(v))
+        .concat(Object.keys(a_named).map((name) => arg(a_named[name], name)));
 }
-exports.Value = Value;
-//endregion <INODES:META>
-//region <INODES:TYPES>
-class Param extends symbol_table_1.SymbolTable {
-  constructor(name, ty, default_) {
-    super();
-    this.name = name;
-    this.ty = ty;
-    this.default_ = default_;
-  }
+exports.args = args;
+function idx(ix) {
+    return args([stdlib_1.IntT.value(BigInt(ix))]);
 }
-exports.Param = Param;
-class OptionT extends Type {
-  constructor(inner) {
-    super(`${inner.name}?`);
-    this.inner = inner;
-  }
-  isSubOf(other) {
-    return (
-      (other instanceof OptionT && this.inner.isSubOf(other.inner)) ||
-      super.isSubOf(other)
-    );
-  }
-  convertFrom(val) {
-    throw new Error('Method not implemented.');
-    if (checkC(OptionT, val)) {
-      return this.value(val.data);
-    } else if (check(CWSNone.TYPE, val)) {
-      return this.value(null);
-    } else {
-      throw new Error(`cannot convert ${val.ty.name} into ${this.name}`);
-    }
-  }
-  value(data) {
-    // TODO: replace null with CWSNone
-    if (data === null) {
-      return new Value(this, null);
-    } else {
-      return new Value(this, this.inner.value(data));
-    }
-  }
-  canConvertFrom(other) {
-    if (other instanceof OptionT) {
-      return this.inner.canConvertFrom(other.inner);
-    } else if (other.isEq(CWSNone.TYPE)) {
-      return true;
-    } else {
-      return super.canConvertFrom(other);
-    }
-  }
+exports.idx = idx;
+function operator(op) {
+    return ('#operator' + op);
 }
-exports.OptionT = OptionT;
-class TupleT extends Type {
-  constructor(tys) {
-    super(`[${tys.map((x) => x.name).join(', ')}]`);
-    this.tys = tys;
-  }
-  convertFrom(val) {
-    throw new Error('Method not implemented.');
-  }
-  value(data) {
-    return new TupleInstance(this, data);
-  }
-}
-exports.TupleT = TupleT;
-class ListT extends Type {
-  constructor(inner, size) {
-    super(`${inner.name}${size ? `[${size}]` : '[]'}`);
-    this.inner = inner;
-    this.size = size;
-  }
-  convertFrom(val) {
-    throw new Error('Method not implemented.');
-  }
-  isSubOf(other) {
-    if (other instanceof ListT) {
-      if (this.size !== undefined) {
-        return this.size === other.size && this.inner.isSubOf(other.inner);
-      } else {
-        return this.inner.isSubOf(other.inner);
-      }
-    } else if (other instanceof TupleT) {
-      if (this.size !== undefined) {
-        return (
-          this.size === other.tys.length &&
-          other.tys.every((x) => this.inner.isSubOf(x))
-        );
-      } else {
-        return super.isSubOf(other);
-      }
-    } else {
-      return super.isSubOf(other);
-    }
-  }
-}
-exports.ListT = ListT;
-class IndexableIter {
-  constructor(parent) {
-    this.parent = parent;
-    this.ix = 0;
-  }
-  next() {
-    if (this.ix >= this.parent.getSize()) {
-      return undefined;
-    }
-    return this.parent.getIndex([new Arg(Int.TYPE.value(this.ix++))]);
-  }
-}
-exports.IndexableIter = IndexableIter;
-class IndexableValue extends Value {
-  constructor(ty, items) {
-    super(ty, items);
-    this.ty = ty;
-    this.items = items;
-  }
-  getSize() {
-    return this.items.length;
-  }
-  getIndex(args) {
-    if (args.length !== 1) {
-      throw new Error(`list index requires 1 argument, got ${args.length}`);
-    }
-    let arg = args[0];
-    if (!check(Int.TYPE, arg.value)) {
-      throw new Error(
-        // @ts-ignore
-        `list index must be an integer, got ${arg.value.ty.name}`
-      );
-    }
-    // TODO: this is iffy, fix Value vs Val or make an int type
-    let ix = arg.value.data;
-    if (ix < 0 || ix >= this.getSize()) {
-      throw new Error(`index out of range: ${ix}`);
-    }
-    return this.items[Number(ix)];
-  }
-  setIndex(args, val) {
-    if (args.length !== 1) {
-      throw new Error(`list index requires 1 argument, got ${args.length}`);
-    }
-    let arg = args[0];
-    if (!check(Int.TYPE, arg.value)) {
-      throw new Error(
-        // @ts-ignore
-        `list index must be an integer, got ${arg.value.ty.name}`
-      );
-    }
-    let ix = arg.value.data;
-    if (ix < 0 || ix >= this.getSize()) {
-      throw new Error(`index out of range: ${ix}`);
-    }
-    this.items[Number(ix)] = val;
-  }
-  getIter() {
-    return new IndexableIter(this);
-  }
-}
-exports.IndexableValue = IndexableValue;
-class ListInstance extends IndexableValue {
-  push(val) {
-    this.items.push(val);
-  }
-}
-exports.ListInstance = ListInstance;
-class TupleInstance extends IndexableValue {}
-exports.TupleInstance = TupleInstance;
-class CWSNone extends Type {
-  constructor() {
-    super('None');
-    this.ty = CWSNone.TYPE;
-  }
-  value(data) {
-    return new Value(this, null);
-  }
-  convertFrom(other) {
-    if (!check(CWSNone.TYPE, other)) {
-      // @ts-ignore
-      throw new Error(`Cannot convert ${other.ty.name} to None`);
-    } else {
-      return new Value(this, null);
-    }
-  }
-  getConvertFromTypes() {
-    return [CWSNone.TYPE];
-  }
-  isSubOf(other) {
-    return super.isSubOf(other) || other instanceof OptionT;
-  }
-}
-exports.CWSNone = CWSNone;
-CWSNone.TYPE = new CWSNone();
-class Bool extends Type {
-  constructor() {
-    super('Bool');
-  }
-  static isTrue(val) {
-    if (check(Bool.TYPE, val)) {
-      return val.data;
-    } else {
-      // @ts-ignore
-      throw new Error(`Cannot convert ${val.ty.name} to Bool`);
-    }
-  }
-  static isFalse(val) {
-    return !Bool.isTrue(val);
-  }
-  convertFrom(other) {
-    throw new Error('Method not implemented.');
-    if (check(Int.TYPE, other)) {
-      return new Value(this, other.data !== BigInt(0));
-    } else if (check(Bool.TYPE, other)) {
-      return new Value(this, other.data);
-    } else {
-      throw new Error(`Cannot convert ${other.ty.name} to Bool`);
-    }
-  }
-}
-exports.Bool = Bool;
-Bool.TYPE = new Bool();
-Bool.TRUE = new Value(Bool.TYPE, true);
-Bool.FALSE = new Value(Bool.TYPE, false);
-//endregion <INODES:TYPES>
-//region <INODES:DEFINITIONS>
-class ContractDefn extends Type {
-  constructor(name) {
-    super(name);
-    this.name = name;
-  }
-  convertFrom(other) {
-    throw new Error('Method not implemented.');
-  }
-  instantiate(args) {
-    this.getSymbol('#instantiate').call(args);
-  }
-  exec(fnName, args) {
-    this.getSymbol('exec#' + fnName).call(args);
-  }
-  query(fnName, args) {
-    return this.getSymbol('query#' + fnName).call(args);
-  }
-  value(address) {
-    if (check(CWSString.TYPE, address)) {
-      return new ContractInstance(this, address);
-    } else {
-      // @ts-ignore
-      throw new Error(`Cannot convert ${address.ty.name} to ContractInstance`);
-    }
-  }
-}
-exports.ContractDefn = ContractDefn;
-class InterfaceDefn extends symbol_table_1.SymbolTable {
-  constructor(name) {
-    super();
-    this.name = name;
-  }
-}
-exports.InterfaceDefn = InterfaceDefn;
-class MapKey extends symbol_table_1.SymbolTable {
-  constructor(ty, name) {
-    super();
-    this.ty = ty;
-    this.name = name;
-  }
-}
-exports.MapKey = MapKey;
-class StateItem extends symbol_table_1.SymbolTable {
-  constructor(key, ty) {
-    super();
-    this.key = key;
-    this.ty = ty;
-  }
-}
-exports.StateItem = StateItem;
-class StateMap extends symbol_table_1.SymbolTable {
-  constructor(prefix, mapKeys, ty) {
-    super();
-    this.prefix = prefix;
-    this.mapKeys = mapKeys;
-    this.ty = ty;
-  }
-}
-exports.StateMap = StateMap;
-class FnDefn extends Type {
-  // if name is %anonymous%, then this is a lambda defn
-  constructor(name, fallible, params, retTy, body) {
-    super(name);
-    this.name = name;
-    this.fallible = fallible;
-    this.params = params;
-    this.retTy = retTy;
-    this.body = body;
-  }
-  convertFrom(val) {
-    throw new Error('Method not implemented.');
-  }
-  setArgsInScope(scope, args) {
-    // ensure positional arguments come before named arguments
-    let firstNamedArgIx = args.findIndex((x) => x.name !== undefined);
-    // check if any args after first named arg are positional
-    let nextPosArg = args.findIndex(
-      (x, i) => x.name === undefined && i > firstNamedArgIx
-    );
-    if (firstNamedArgIx !== -1 && nextPosArg !== -1) {
-      throw new Error(
-        `${this.name}: positional arguments must come before named arguments`
-      );
-    }
-    // see if there are too many arguments
-    if (args.length > this.params.length) {
-      throw new Error(`${this.name}: too many arguments`);
-    }
-    // see if there are enough arguments
-    if (
-      args.length < this.params.filter((x) => x.default_ !== undefined).length
-    ) {
-      throw new Error(`${this.name}: too few arguments`);
-    }
-    // see if there are any arguments that are not in the function signature
-    let unknownArgs = args.filter((x) => {
-      return !this.params.some((y) => y.name === x.name);
+var ContextType;
+(function (ContextType) {
+    ContextType[ContextType["INSTANTIATE"] = 0] = "INSTANTIATE";
+    ContextType[ContextType["EXEC"] = 1] = "EXEC";
+    ContextType[ContextType["QUERY"] = 2] = "QUERY";
+})(ContextType = exports.ContextType || (exports.ContextType = {}));
+function buildCtxEnv(env) {
+    return stdlib_1.CtxEnvT.make({
+        block: stdlib_1.CtxEnvBlockInfoT.make({
+            height: stdlib_1.IntT.value(BigInt(env.block.height)),
+            time: stdlib_1.IntT.value(BigInt(env.block.time)),
+            chain_id: stdlib_1.StringT.value(env.block.chain_id),
+        }),
+        contract: stdlib_1.CtxEnvContractInfoT.make({
+            address: stdlib_1.AddressT.value(env.contract.address),
+        }),
     });
-    if (unknownArgs.length > 0) {
-      throw new Error(
-        `${this.name}: ${
-          this.name
-        }: called with unknown named arguments ${unknownArgs
-          .map((x) => x.name)
-          .join(', ')}`
-      );
-    }
-    for (let p of this.params) {
-      let arg = args.find((a) => p.name === a.name);
-      if (arg === undefined) {
-        if (p.default_ === undefined) {
-          throw new Error(
-            `${this.name}: missing argument for required param ${p.name}`
-          );
-        }
-        scope.setSymbol(p.name, p.default_);
-      } else {
-        if (p.ty ? check(p.ty, arg.value) : false) {
-          throw new Error(
-            `${this.name}: invalid argument type for ${p.name} - expected ${p.ty.name}, got ${arg.value.ty.name}`
-          );
-        }
-        scope.setSymbol(p.name, arg.value);
-      }
-    }
-  }
 }
-exports.FnDefn = FnDefn;
-class StructDefn extends Type {
-  constructor(name, params) {
-    super(name);
-    this.name = name;
-    this.params = params;
-  }
-  convertFrom(val) {
-    throw new Error('Method not implemented.');
-  }
-  call(args) {
-    // ensure positional arguments come before named arguments
-    let firstNamedArgIx = args.findIndex((x) => x.name !== undefined);
-    // check if any args after first named arg are positional
-    let nextPosArg = args.findIndex(
-      (x, i) => x.name === undefined && i > firstNamedArgIx
-    );
-    if (firstNamedArgIx !== -1 && nextPosArg !== -1) {
-      throw new Error(
-        `${this.name}: positional arguments must come before named arguments`
-      );
-    }
-    // see if there are enough arguments
-    if (
-      args.length < this.params.filter((x) => x.default_ !== undefined).length
-    ) {
-      throw new Error(`${this.name}: too few arguments`);
-    }
-    let params = {};
-    args.forEach((arg, i) => {
-      if (arg.name === undefined) {
-        if (i >= this.params.length) {
-          throw new Error(`${this.name}: too many positional arguments`);
-        }
-        params[this.params[i].name] = arg.value;
-      } else {
-        params[arg.name] = arg.value;
-      }
+exports.buildCtxEnv = buildCtxEnv;
+exports.CoinListT = new stdlib_1.ListT(stdlib_1.CoinT);
+function buildCtxInfo(info) {
+    return stdlib_1.CtxInfoT.make({
+        sender: stdlib_1.AddressT.value(info.sender),
+        funds: exports.CoinListT.value(info.funds.map((fund) => stdlib_1.CoinT.make({
+            denom: stdlib_1.StringT.value(fund.denom),
+            amount: stdlib_1.IntT.value(BigInt(fund.amount)),
+        }))),
     });
-    return this.make(params);
-  }
-  make(args) {
-    let instance = new StructInstance(this, undefined);
-    for (let m of this.params) {
-      let arg = args[m.name];
-      if (arg === undefined) {
-        if (m.default_ === undefined) {
-          throw new Error(`${this.name}: missing required member ${m.name}`);
-        }
-        instance.setSymbol(m.name, m.default_);
-      } else {
-        if (m.ty !== undefined && !arg.ty.isSubOf(m.ty)) {
-          throw new Error(
-            `${this.name}: invalid type for member ${m.name} - expected ${m.ty.name}, got ${arg.ty.name}`
-          );
-        }
-        instance.setSymbol(m.name, arg);
-      }
+}
+exports.buildCtxInfo = buildCtxInfo;
+function buildCtxRes() {
+    return stdlib_1.CtxResT.make({
+        messages: new stdlib_1.ListT(stdlib_1.AnyT).value([]),
+        events: new stdlib_1.ListT(stdlib_1.AnyT).value([]),
+        data: stdlib_1.None,
+    });
+}
+exports.buildCtxRes = buildCtxRes;
+function buildMutState(contract) {
+    contract.getSymbol('#state');
+}
+exports.buildMutState = buildMutState;
+function buildMutCtx(contract, state, env, info) {
+    let ctx = new symbol_table_1.SymbolTable();
+    ctx.setSymbol('$', contract);
+    ctx.setSymbol('$state', state);
+    ctx.setSymbol('$env', buildCtxEnv(env));
+    ctx.setSymbol('$info', buildCtxInfo(info));
+    ctx.setSymbol('$res', buildCtxRes());
+    return ctx;
+}
+exports.buildMutCtx = buildMutCtx;
+function buildQueryCtx(contract, state, env) {
+    let ctx = new symbol_table_1.SymbolTable();
+    ctx.setSymbol('$', contract);
+    ctx.setSymbol('$state', state);
+    ctx.setSymbol('$env', buildCtxEnv(env));
+    return ctx;
+}
+exports.buildQueryCtx = buildQueryCtx;
+class StateMapAccessor extends stdlib_1.Value {
+    constructor(state, mapDefn) {
+        super(exports.ContractStateT, null);
+        this.state = state;
+        this.mapDefn = mapDefn;
+        this.prefix = mapDefn.prefix;
+        this.mapKeys = mapDefn.mapKeys;
+        this.ty = mapDefn.ty;
+        this.default_ = mapDefn.default_;
     }
-    return instance;
-  }
-}
-exports.StructDefn = StructDefn;
-class EnumDefn extends Type {
-  constructor(name) {
-    super(name);
-    this.name = name;
-  }
-  convertFrom(val) {
-    throw new Error('Method not implemented.');
-  }
-  isSuperOf(other) {
-    if (
-      other instanceof EnumVariantStructDefn ||
-      other instanceof EnumVariantUnitDefn
-    ) {
-      return this.isEq(other.ty);
-    } else {
-      return super.isSuperOf(other);
+    getIndex(args) {
+        let key = this.buildKey(args);
+        return this.state.symbols.get(key, this.default_);
     }
-  }
-  structVariant(name, params) {
-    const defn = new EnumVariantStructDefn(this, name, params);
-    this.setSymbol(name, defn);
-    return defn;
-  }
-  unitVariant(name) {
-    const defn = new EnumVariantUnitDefn(this, name);
-    console.log(defn);
-    this.setSymbol(name, defn);
-    return defn;
-  }
+    setIndex(args, val) {
+        let key = this.buildKey(args);
+        this.state.symbols[key] = val;
+    }
+    removeIndex(args) {
+        let key = this.buildKey(args);
+        this.state.symbols[key].delete(key);
+    }
+    buildKey(args) {
+        if (args.length !== this.mapKeys.length) {
+            throw new Error(`Invalid number of index arguments for map '${this.prefix}'`);
+        }
+        let keySegments = [this.prefix];
+        for (let i = 0; i < args.length; i++) {
+            if (!args[i].value.isInstanceOf(this.mapKeys[i].ty)) {
+                let keyNameHint = this.mapKeys[i].name
+                    ? `(${this.mapKeys[i].name})`
+                    : '';
+                throw new Error(`Invalid index argument for map '${this.prefix}' key #${i} ${keyNameHint} - expected ${this.mapKeys[i].ty} but got ${args[i].value}`);
+            }
+            // TODO: this is a hack to get around the fact that we don't have a way to
+            // serialize a value to a string. We should probably add a method to the
+            // Value interface for this.
+            keySegments.push(`#${i}:${args[i].value.toString()}#`);
+        }
+        return keySegments.join(`#`);
+    }
 }
-exports.EnumDefn = EnumDefn;
-exports.InstantiateMsgType = new Type('InstantiateMsg');
-exports.ExecMsgType = new Type('ExecMsg');
-exports.QueryMsgType = new Type('QueryMsg');
-exports.ErrorType = new Type('Error');
-exports.EventType = new Type('Event');
-class InstantiateMsg extends StructDefn {
-  isSubOf(other) {
-    return other.isEq(exports.InstantiateMsgType) || super.isSubOf(other);
-  }
+exports.StateMapAccessor = StateMapAccessor;
+exports.ContractStateT = stdlib_1.Type.makeUnitT('ContractState');
+class ContractState extends stdlib_1.Value {
+    constructor(interpreter, contract) {
+        // get all the state items and state maps
+        // if we have item, it can be accessed directly
+        // if we have a map, we need to access it via index
+        super(exports.ContractStateT, null);
+        this.interpreter = interpreter;
+        this.contract = contract;
+        this.stateInfo = {};
+        Object.values(contract.symbols).map((sym) => {
+            if (sym instanceof stdlib_1.StateItem) {
+                this.stateInfo[sym.key] = sym;
+            }
+            if (sym instanceof stdlib_1.StateMap) {
+                this.stateInfo[sym.prefix] = sym;
+            }
+        });
+    }
+    getSymbol(name) {
+        return this.getOwnSymbol(name);
+    }
+    getOwnSymbol(name) {
+        if (!(name in this.stateInfo)) {
+            throw new Error(`Contract ${this.contract.name} has no state variable ${name}`);
+        }
+        let s = this.stateInfo[name];
+        if (s instanceof stdlib_1.StateItem) {
+            return this.symbols[name] || s.ty.defaultValue();
+        }
+        else {
+            return new StateMapAccessor(this, s);
+        }
+    }
+    firstTableWithSymbol(name) {
+        if (name in this.stateInfo) {
+            return this;
+        }
+        return undefined;
+    }
 }
-exports.InstantiateMsg = InstantiateMsg;
-class ExecMsg extends EnumDefn {
-  isSubOf(other) {
-    return other.isEq(exports.ExecMsgType) || super.isSubOf(other);
-  }
-}
-exports.ExecMsg = ExecMsg;
-class QueryMsg extends EnumDefn {
-  isSubOf(other) {
-    return other.isEq(exports.QueryMsgType) || super.isSubOf(other);
-  }
-}
-exports.QueryMsg = QueryMsg;
-class ErrorMsg extends EnumDefn {
-  isSubOf(other) {
-    return other.isEq(exports.ErrorType) || super.isSubOf(other);
-  }
-}
-exports.ErrorMsg = ErrorMsg;
-class EventMsg extends EnumDefn {
-  isSubOf(other) {
-    return other.isEq(exports.EventType) || super.isSubOf(other);
-  }
-}
-exports.EventMsg = EventMsg;
-class EnumVariantStructDefn extends StructDefn {
-  constructor(ty, variantName, params) {
-    super(`${ty.name}.#${variantName}`, params);
-    this.ty = ty;
-    this.variantName = variantName;
-    this.params = params;
-  }
-  isSubOf(other) {
-    return this.ty.isSubOf(other) || super.isSubOf(other);
-  }
-}
-exports.EnumVariantStructDefn = EnumVariantStructDefn;
-class EnumVariantUnitDefn extends Type {
-  constructor(ty, variantName) {
-    super(`${ty.name}.#${variantName}`);
-    this.ty = ty;
-    this.variantName = variantName;
-  }
-  isSubOf(other) {
-    return this.ty.isSubOf(other) || super.isSubOf(other);
-  }
-}
-exports.EnumVariantUnitDefn = EnumVariantUnitDefn;
-//endregion <INODES:DEFNS>
-//region <INODES:VALUES>
-class Arg extends symbol_table_1.SymbolTable {
-  constructor(value, name) {
-    super();
-    this.value = value;
-    this.name = name;
-  }
-}
-exports.Arg = Arg;
-class ContractInstance extends Value {
-  constructor(ty, address) {
-    super(ty, null);
-    this.ty = ty;
-    this.address = address;
-  }
+exports.ContractState = ContractState;
+class ContractInstance extends stdlib_1.Value {
+    constructor(interpreter, ty) {
+        super(ty, null);
+        this.interpreter = interpreter;
+        this.ty = ty;
+        this.state = new ContractState(interpreter, ty);
+    }
+    instantiate(env, info, args) {
+        let context = buildMutCtx(this.ty, this.state, env, info);
+        let impl = this.ty.getSymbol('#instantiate#impl');
+        this.interpreter.callFn(impl, args, context);
+        return context.getSymbol('$res');
+    }
+    exec(env, info, name, args) {
+        let context = buildMutCtx(this.ty, this.state, env, info);
+        let impl = this.ty.getSymbol(`#exec${name}#impl`);
+        this.interpreter.callFn(impl, args, context);
+        return context.getSymbol('$res');
+    }
+    query(env, name, args) {
+        let context = buildQueryCtx(this.ty, this.state, env);
+        let impl = this.ty.getSymbol(`#query${name}#impl`);
+        return this.interpreter.callFn(impl, args, context);
+    }
 }
 exports.ContractInstance = ContractInstance;
-class StructInstance extends Value {}
-exports.StructInstance = StructInstance;
-//endregion <INODES:VALUES>
-// region <STDLIB>
-exports.None = new CWSNone();
-var IntSize;
-(function (IntSize) {
-  IntSize[(IntSize['SIZE_8'] = 8)] = 'SIZE_8';
-  IntSize[(IntSize['SIZE_16'] = 16)] = 'SIZE_16';
-  IntSize[(IntSize['SIZE_32'] = 32)] = 'SIZE_32';
-  IntSize[(IntSize['SIZE_64'] = 64)] = 'SIZE_64';
-  IntSize[(IntSize['SIZE_128'] = 128)] = 'SIZE_128';
-})(IntSize || (IntSize = {}));
-class UnsignedInt extends Type {
-  constructor(size) {
-    super('U' + size.toString());
-  }
-  isSubOf(other) {
-    return other.isEq(Int.TYPE) || super.isSubOf(other);
-  }
-  convertFrom(val) {
-    if (check(CWSString.TYPE, val)) {
-      return this.value(BigInt(val.data));
-    }
-    throw new Error(`Cannot convert ${val.ty.name} to ${this.name}!`);
-  }
-}
-exports.U8 = new UnsignedInt(IntSize.SIZE_8);
-exports.U16 = new UnsignedInt(IntSize.SIZE_16);
-exports.U32 = new UnsignedInt(IntSize.SIZE_32);
-exports.U64 = new UnsignedInt(IntSize.SIZE_64);
-exports.U128 = new UnsignedInt(IntSize.SIZE_128);
-class Int extends Type {
-  constructor() {
-    super('Int');
-  }
-  // [operator(AST.Op.PLUS)](lhs_: Data<Int>, rhs_: Data) {
-  //   let lhs = cast(this, lhs_);
-  //   let rhs = this.cast(rhs_);
-  //   return this.value(lhs.data + rhs.data);
-  // }
-  //
-  // [operator(AST.Op.MINUS)](lhs_: Data<Int>, rhs_: Data) {
-  //   let lhs = this.cast(lhs_);
-  //   let rhs = this.cast(rhs_);
-  //   return this.value(lhs.data - rhs.data);
-  // }
-  //
-  // [operator(AST.Op.MUL)](lhs_: Data<Int>, rhs_: Data) {
-  //   let lhs = this.cast(lhs_);
-  //   let rhs = this.cast(rhs_);
-  //   return this.value(lhs.data * rhs.data);
-  // }
-  //
-  // [operator(AST.Op.DIV)](lhs_: Data<Int>, rhs_: Data) {
-  //   let lhs = this.cast(lhs_);
-  //   let rhs = this.cast(rhs_);
-  //   try {
-  //     this.value(BigInt(lhs.data / rhs.data));
-  //   } catch (e) {
-  //     throw new Error('Cannot divide by zero');
-  //   }
-  // }
-  //
-  // [operator(AST.Op.MOD)](lhs_: Data<Int>, rhs_: Data) {
-  //   let lhs = this.cast(lhs_);
-  //   let rhs = this.cast(rhs_);
-  //   try {
-  //     this.value(BigInt(lhs.data % rhs.data));
-  //   } catch (e) {
-  //     throw new Error('Cannot divide by zero');
-  //   }
-  // }
-  //
-  // [operator(AST.Op.EQ)](lhs_: Data<Int>, rhs_: Data) {
-  //   let lhs = this.cast(lhs_);
-  //   let rhs = this.cast(rhs_);
-  //   return Bool.TYPE.value(lhs.data === rhs.data);
-  // }
-  convertFrom(other) {
-    throw new Error('Method not implemented.');
-    if (check(CWSString.TYPE, other)) {
-      return this.value(BigInt(other.data));
-    } else if (
-      check(exports.U8, other) ||
-      check(exports.U16, other) ||
-      check(exports.U32, other) ||
-      check(exports.U64, other) ||
-      check(exports.U128, other)
-    ) {
-      return this.value(BigInt(other.data));
-    } else {
-      throw new Error('Cannot convert from ' + other.ty.name);
-    }
-  }
-  getConvertFromTypes() {
-    return [
-      CWSString.TYPE,
-      exports.U8,
-      exports.U16,
-      exports.U32,
-      exports.U64,
-      exports.U128,
-    ];
-  }
-  canConvertFrom(other) {
-    return other.isEq(Int.TYPE) || other.isEq(exports.U8);
-  }
-}
-Int.TYPE = new Int();
-class CWSString extends Type {
-  constructor() {
-    super('String');
-  }
-  convertFrom(val) {
-    if (check(Int.TYPE, val) || checkC(UnsignedInt, val)) {
-      return this.value(val.data.toString());
-    }
-    // @ts-ignore
-    throw new Error('Cannot convert from ' + val.ty.name);
-  }
-}
-exports.CWSString = CWSString;
-CWSString.TYPE = new CWSString();
-class Address extends Type {
-  constructor() {
-    super('Address');
-  }
-  isSubOf(other) {
-    return other.isEq(CWSString.TYPE) || super.isSubOf(other);
-  }
-}
-exports.Address = Address;
-Address.TYPE = new Address();
-class Dec extends Type {
-  constructor() {
-    super('Dec');
-  }
-}
-Dec.TYPE = new Dec();
-class Binary extends Type {
-  constructor() {
-    super('Binary');
-  }
-}
-Binary.TYPE = new Binary();
-const CWSError = new ErrorMsg('Error');
-exports.UnwrapNone = CWSError.unitVariant('UnwrapNone');
-exports.Generic = CWSError.structVariant('Generic', [
-  new Param('message', CWSString.TYPE),
-]);
-exports.STDLIB = {
-  Address: Address.TYPE,
-  Int: Int.TYPE,
-  String: CWSString.TYPE,
-  U8: exports.U8,
-  U64: exports.U64,
-  U128: exports.U128,
-  Binary: Binary.TYPE,
-  Error: CWSError,
-};
-//endregion <STDLIB>
-//region <HELPER FUNCTIONS>
-function check(ty, val) {
-  if (ty === undefined) {
-    return val instanceof Value;
-  } else {
-    return val instanceof Value && val.ty.isEq(ty);
-  }
-}
-function checkC(tyc, val) {
-  return val instanceof Value && val.ty instanceof tyc;
-}
-function arg(val, name) {
-  return new Arg(val, name);
-}
-function index(ix) {
-  return [new Arg(Int.TYPE.value(BigInt(ix)))];
-}
-function operator(op) {
-  return '#operator' + op;
-}
 class CWScriptInterpreter extends symbol_table_1.SymbolTable {
-  constructor(ctx) {
-    super({}, new symbol_table_1.SymbolTable(ctx.env));
-    this.ctx = ctx;
-    let visitor = new CWScriptInterpreterVisitor(this);
-    Object.keys(this.ctx.files).forEach((filename) => {
-      visitor.visit(this.ctx.files[filename]);
-    });
-  }
+    constructor(ctx) {
+        super({}, new symbol_table_1.SymbolTable(ctx.env));
+        this.ctx = ctx;
+        for (let file in ctx.sources) {
+            let sourceText = this.ctx.sources[file];
+            this.runCode(sourceText, file);
+        }
+    }
+    runCode(sourceText, file = ':memory:') {
+        let { ast, diagnostics } = parser_1.CWScriptParser.parse(sourceText);
+        if (!ast) {
+            return;
+        }
+        this.visitor = new CWScriptInterpreterVisitor(this, sourceText, file);
+        this.visitor.visit(ast); // run
+    }
+    callFn(fn, args, scope) {
+        if (this.visitor !== undefined) {
+            return this.visitor.callFn(fn, args, scope);
+        }
+        else {
+            throw new InterpreterError('Interpreter not initialized');
+        }
+    }
 }
 exports.CWScriptInterpreter = CWScriptInterpreter;
 //endregion <INTERPRETER>
 //region <VISITOR>
 class Failure {
-  constructor(error) {
-    this.error = error;
-  }
+    constructor(error) {
+        this.error = error;
+    }
 }
 exports.Failure = Failure;
 class Return {
-  constructor(value) {
-    this.value = value;
-  }
+    constructor(value) {
+        this.value = value;
+    }
 }
 exports.Return = Return;
+class DebugCall extends stdlib_1.FnDefn {
+    constructor() {
+        super('debug', true, [], stdlib_1.NoneT);
+    }
+    call(interpreter, node) {
+        debugger;
+    }
+}
+exports.DebugCall = DebugCall;
+class InterpreterError extends Error {
+    constructor(message) {
+        super(message);
+    }
+}
+exports.InterpreterError = InterpreterError;
 class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
-  constructor(interpreter) {
-    super();
-    this.interpreter = interpreter;
-    //endregion <TYPE EXPRESSIONS>
-    //region <CONTRACT ITEMS>
-    this.visitErrorDefn = (node) => this.visitStructDefn(node);
-    this.visitEventDefn = (node) => this.visitStructDefn(node);
-    this.scope = interpreter;
-  }
-  //region <PERVASIVES>
-  visitSourceFile(node) {
-    node.forEach((x) => this.visit(x));
-  }
-  visitParam(node) {
-    return new Param(
-      node.name.value,
-      node.ty !== null ? this.visit(node.ty) : undefined,
-      node.default_ !== null ? this.visit(node.default_) : undefined
-    );
-  }
-  //endregion <PERVASIVES>
-  //region <TOP-LEVEL STATEMENTS>
-  visitInterfaceDefn(node) {
-    let prevScope = this.scope;
-    let name = node.name.value;
-    let interfaceDefn = this.scope.subscope(new InterfaceDefn(name));
-    this.scope = interfaceDefn;
-    node.body.children.forEach((x) => {
-      if (x instanceof AST.StructDefn) {
-        interfaceDefn.setSymbol(x.name.value, this.visitStructDefn(x));
-      }
-      if (x instanceof AST.EnumDefn) {
-        interfaceDefn.setSymbol(x.name.value, this.visitEnumDefn(x));
-      }
-      if (x instanceof AST.ErrorDefn) {
-        interfaceDefn.setSymbol(
-          'error#' + x.name.value,
-          this.visitErrorDefn(x)
-        );
-      }
-      if (x instanceof AST.EventDefn) {
-        interfaceDefn.setSymbol(
-          'event#' + x.name.value,
-          this.visitEventDefn(x)
-        );
-      }
-    });
-    this.interpreter.setSymbol(name, interfaceDefn);
-    this.scope = prevScope;
-  }
-  visitContractDefn(node) {
-    let prevScope = this.scope;
-    let name = node.name.value;
-    let contractDefn = this.scope.subscope(new ContractDefn(name));
-    this.scope = contractDefn;
-    node.body.children.forEach((x) => {
-      if (x instanceof AST.StructDefn) {
-        contractDefn.setSymbol(x.name.value, this.visitStructDefn(x));
-      }
-      if (x instanceof AST.EnumDefn) {
-        contractDefn.setSymbol(x.name.value, this.visitEnumDefn(x));
-      }
-      if (x instanceof AST.StateDefnBlock) {
-        x.descendantsOfType(AST.StateDefnItem).forEach((itemDefn) => {
-          contractDefn.setSymbol(
-            'state#' + itemDefn.name.value,
-            new StateItem(itemDefn.name.value, this.visit(itemDefn.ty))
-          );
-        });
-        x.descendantsOfType(AST.StateDefnMap).forEach((mapDefn) => {
-          contractDefn.setSymbol(
-            'state#' + mapDefn.name.value,
-            new StateMap(
-              mapDefn.name.value,
-              mapDefn.mapKeys.map((mk) => this.visitMapKeyDefn(mk)),
-              this.visit(mapDefn.ty)
-            )
-          );
-        });
-      }
-      if (x instanceof AST.ErrorDefn) {
-        contractDefn.setSymbol('error#' + x.name.value, this.visitErrorDefn(x));
-      }
-      if (x instanceof AST.EventDefn) {
-        contractDefn.setSymbol('event#' + x.name.value, this.visitEventDefn(x));
-      }
-      if (x instanceof AST.InstantiateDefn) {
-        let instantiateMsg = this.visitStructDefn(x);
-        instantiateMsg.name = name + '.#instantiate';
-        contractDefn.setSymbol('#instantiate', instantiateMsg);
-        contractDefn.setSymbol(
-          '#instantiate#impl',
-          this.visitInstantiateDefn(x)
-        );
-      }
-      if (x instanceof AST.ExecDefn) {
-        let execMsg = this.visitStructDefn(x);
-        execMsg.name = `exec ${name}.#${x.name.value}`;
-        contractDefn.setSymbol('exec#' + x.name.value, execMsg);
-        contractDefn.setSymbol(
-          'exec#' + x.name.value + '#impl',
-          this.visitExecDefn(x)
-        );
-      }
-      if (x instanceof AST.QueryDefn) {
-        let queryMsg = this.visitStructDefn(x);
-        queryMsg.name = `query ${name}.#${x.name.value}`;
-        contractDefn.setSymbol('query#' + x.name.value, queryMsg);
-        contractDefn.setSymbol(
-          'query#' + x.name.value + '#impl',
-          this.visitQueryDefn(x)
-        );
-      }
-    });
-    this.scope = prevScope;
-    this.interpreter.setSymbol(name, contractDefn);
-  }
-  //endregion <TOP-LEVEL STATEMENTS>
-  //region <TYPE EXPRESSIONS>
-  visitTypePath(node) {
-    let segments = node.segments.map((x) => x.value);
-    // start at the first segment, and keep going until we resolve the final segment
-    let curr = this.scope.getSymbol(segments[0]);
-    for (let i = 1; i < segments.length; i++) {
-      let next = curr.getSymbol(segments[i]);
-      if (!(next instanceof Type)) {
-        throw new Error(`${segments[i]} is not a type`);
-      }
-      curr = next;
+    get scope() {
+        return this.scopes[this.scopes.length - 1];
     }
-    return curr;
-  }
-  visitOptionT(node) {
-    let ty = this.visit(node.ty);
-    return new OptionT(ty);
-  }
-  visitStructDefn(node) {
-    var _a, _b;
-    let name;
-    if (
-      node instanceof AST.InstantiateDefn ||
-      node instanceof AST.InstantiateDecl
-    ) {
-      name = `#instantiate`;
-    } else {
-      name =
-        (_b =
-          (_a = node.name) === null || _a === void 0 ? void 0 : _a.value) !==
-          null && _b !== void 0
-          ? _b
-          : '%anonymous';
+    pushScope(scope) {
+        this.scopes.push(scope);
     }
-    let params = node.params.map((p, i) => {
-      var _a;
-      if (!p.name) {
-        throw new Error(`${name}: missing name for struct ${i}`);
-      }
-      if (!p.ty) {
-        throw new Error(`${name}: missing type for member ${p.name.value}`);
-      }
-      let ty = this.visit(p.ty);
-      let default_ = p.default_ ? this.visit(p.default_) : undefined;
-      if (p.optional) {
-        ty = new OptionT(ty);
-        default_ =
-          (_a = p.default_) !== null && _a !== void 0 ? _a : exports.None;
-      }
-      return new Param(p.name.value, ty, default_);
-    });
-    return new StructDefn(name, params);
-  }
-  visitEnumDefn(node) {
-    let name = node.name.value;
-    let enumDefn = new EnumDefn(name);
-    node.variants.forEach((v, i) => {
-      if (v instanceof AST.EnumVariantStruct) {
-        let structDefn = this.visitStructDefn(v);
-        enumDefn.structVariant(name, structDefn.params);
-      }
-      if (v instanceof AST.EnumVariantUnit) {
-        enumDefn.unitVariant(name);
-      }
-    });
-    return enumDefn;
-  }
-  visitListT(node) {
-    return new ListT(this.visit(node.ty), node.size ? node.size : undefined);
-  }
-  visitMapKeyDefn(node) {
-    let ty = this.visit(node.ty);
-    let name = node.name !== null ? node.name.value : undefined;
-    return new MapKey(ty, name);
-  }
-  visitFnDefn(node) {
-    let name = node.name.value;
-    let params = node.params.map((p) => this.visitParam(p));
-    let fallible = node.fallible;
-    let retTy = node.retTy !== null ? this.visit(node.retTy) : undefined;
-    return new FnDefn(name, fallible, params, retTy, node.body);
-  }
-  /**
-   * This visits the function definition for the instantiate message.
-   * @param node
-   */
-  visitInstantiateDefn(node) {
-    let params = node.params.map((p) => this.visitParam(p));
-    return new FnDefn('#instantiate', false, params, undefined, node.body);
-  }
-  visitExecDefn(node) {
-    return {};
-  }
-  visitQueryDefn(node) {
-    return {};
-  }
-  //endregion <CONTRACT ITEMS>
-  //region <STATEMENTS>
-  visitBlock(node) {
-    return node.map((x) => this.visit(x));
-  }
-  visitLetStmt(node) {
-    if (node.expr !== null) {
-      let val = this.visit(node.expr);
-      if (node.binding instanceof AST.IdentBinding) {
-        this.scope.setSymbol(node.binding.name.value, val);
-      } else if (node.binding instanceof AST.TupleBinding) {
-        if (!(val.ty instanceof TupleT) && !(val.ty instanceof ListT)) {
-          throw new Error(
-            `tried to unpack ${val} as tuple of ${node.binding.bindings.length} elements`
-          );
+    popScope() {
+        this.scopes.pop();
+    }
+    constructor(interpreter, sourceText, file) {
+        super();
+        this.interpreter = interpreter;
+        this.sourceText = sourceText;
+        //endregion <TYPE EXPRESSIONS>
+        //region <CONTRACT ITEMS>
+        this.visitErrorDefn = (node) => {
+            let struct = this.visitStructDefn(node);
+            return new stdlib_1.ErrorMsg(struct.name, struct.params);
+        };
+        this.visitEventDefn = (node) => {
+            let struct = this.visitStructDefn(node);
+            return new stdlib_1.EventMsg(struct.name, struct.params);
+        };
+        this.scopes = [interpreter];
+        this.tv = new position_1.TextView(sourceText);
+        // make absolute path
+        this.file = path_1.default.resolve(file);
+    }
+    makeError(message, node) {
+        if (!node.$ctx) {
+            return new InterpreterError(message);
         }
-        node.binding.bindings.forEach((symbol, i) => {
-          let name = symbol.name.value;
-          this.scope.setSymbol(name, val.index(i));
-        });
-      } else {
-        // struct binding
-        if (!(val.ty instanceof StructDefn)) {
-          throw new Error(`tried to unpack ${val} as struct`);
+        let originalMsg = message;
+        let pos = (0, position_1.getPosition)(node.$ctx);
+        // get range of node
+        let range = this.tv.range(pos.start, pos.end, true);
+        message = `Error occured in node: '${node.constructor.name}'`;
+        let fnDefn = node.nearestAncestorWhere((n) => n instanceof AST.FnDefn ||
+            n instanceof AST.InstantiateDefn ||
+            n instanceof AST.ReplyDefn ||
+            n instanceof AST.ExecDefn ||
+            n instanceof AST.QueryDefn);
+        if (fnDefn) {
+            let fnName;
+            let prefix = '';
+            if (fnDefn instanceof AST.InstantiateDefn) {
+                fnName = '#instantiate';
+            }
+            else {
+                fnName = fnDefn.name.value;
+            }
+            if (fnDefn instanceof AST.ExecDefn) {
+                prefix = 'exec ';
+                fnName = '#' + fnName;
+            }
+            else if (fnDefn instanceof AST.QueryDefn) {
+                prefix = 'query ';
+                fnName = '#' + fnName;
+            }
+            else if (fnDefn instanceof AST.ReplyDefn) {
+                prefix = 'reply ';
+            }
+            let cDefn = fnDefn.nearestAncestorWhere((n) => n instanceof AST.ContractDefn || n instanceof AST.InterfaceDefn);
+            if (cDefn) {
+                message += ` inside '${prefix}${cDefn.name.value}.${fnName}'`;
+            }
+            else {
+                message += ` inside '${prefix}${fnName}'`;
+            }
         }
-        node.binding.bindings.forEach((symbol, i) => {
-          let name = symbol.name.value;
-          this.scope.setSymbol(name, val.getSymbol(name));
+        message += `\n\n`;
+        message += `Source: ${this.file}:${range.start.line}:${range.start.character}-${range.end.line}:${range.end.character}\n\n`;
+        let lineNoWidth = 5;
+        let gutterWidth = lineNoWidth + 2;
+        let makeLine = (line, text) => {
+            return chalk_1.default.dim(`${line.toString().padStart(lineNoWidth, ' ')}| ${text}\n`);
+        };
+        let makeErrorLine = (line, text) => {
+            return `${chalk_1.default.redBright(chalk_1.default.bold(line.toString().padStart(lineNoWidth, ' ')) + '|')} ${text}\n`;
+        };
+        this.tv.surroundingLinesOfRange(range, 5, true).forEach((x) => {
+            // if this is the starting line, make a pointer
+            // if range.start.line <= x.line <= range.end.line, highlight the line
+            if (x.line >= range.start.line && x.line <= range.end.line) {
+                // only highlight the part of the line that is in the range
+                let start = x.line === range.start.line ? range.start.character - 1 : 0;
+                let end = x.line === range.end.line ? range.end.character - 1 : x.text.length;
+                message += makeErrorLine(x.line, chalk_1.default.dim(x.text.slice(0, start)) +
+                    chalk_1.default.bold(chalk_1.default.redBright(x.text.slice(start, end))) +
+                    chalk_1.default.dim(x.text.slice(end)));
+                if (x.line === range.end.line) {
+                    message += chalk_1.default.bold(chalk_1.default.yellow(' '.repeat(gutterWidth + range.end.character - 2) +
+                        '^ ' +
+                        originalMsg +
+                        '\n'));
+                }
+            }
+            else {
+                message += makeLine(x.line, x.text);
+            }
         });
-      }
-    } else {
-      throw new Error(`let statement without expression not yet implemented`);
+        message += `...\n\n`;
+        return new InterpreterError(message);
     }
-  }
-  visitAssignStmt(node) {
-    let rhs = this.visit(node.rhs);
-    if (node.lhs instanceof AST.IdentLHS) {
-      this.scope.setSymbol(node.lhs.symbol.value, rhs);
-    } else if (node.lhs instanceof AST.DotLHS) {
-      let obj = this.visit(node.lhs.obj);
-      let member = node.lhs.member.value;
-      let tbl = obj.firstTableWithSymbol(member);
-      if (tbl === undefined) {
-        throw new Error(
-          `tried to assign to non-existent member ${member} of ${obj}`
-        );
-      } else {
-        tbl.setSymbol(member, rhs);
-      }
-    } else {
-      // index assignment
-      let obj = this.visit(node.lhs.obj);
-      if (!(obj.ty instanceof ListT) && !(obj.ty instanceof TupleT)) {
-        throw new Error(`tried to index into non-indexable type ${obj.ty}`);
-      } else {
-        let args = node.lhs.args.map((x) => new Arg(this.visit(x)));
-        obj.setIndex(args, rhs);
-      }
-    }
-  }
-  visitIfStmt(node) {
-    let pred = this.visit(node.pred);
-    if (check(Bool.TYPE, pred)) {
-      if (Bool.isTrue(pred)) {
-        return this.visit(node.then);
-      } else {
-        return node.else_ !== null ? this.visit(node.else_) : exports.None;
-      }
-    } else {
-      // @ts-ignore
-      throw new Error(`predicate must be a Bool, got ${pred.ty}`);
-    }
-  }
-  visitForStmt(node) {
-    let expr = this.visit(node.iter);
-    // make sure it is iterable
-    if (!(expr.ty instanceof ListT) && !(expr.ty instanceof TupleT)) {
-      throw new Error(`tried to iterate over non-iterable type ${expr.ty}`);
-    }
-    // get iterator
-    let iter = expr.getIter();
-    // make new scope
-    let prevScope = this.scope;
-    this.scope = prevScope.subscope();
-    // bindings
-    if (node.binding instanceof AST.IdentBinding) {
-      let name = node.binding.name.value;
-      for (let val = iter.next(); val !== undefined; val = iter.next()) {
-        this.scope.setSymbol(name, val);
-        this.visit(node.body);
-      }
-    } else if (node.binding instanceof AST.TupleBinding) {
-      for (let val = iter.next(); val !== undefined; val = iter.next()) {
-        // make sure val is iterable
-        if (!(val.ty instanceof TupleT) && !(val.ty instanceof ListT)) {
-          throw new Error(
-            `tried to unpack ${val} as tuple of ${node.binding.bindings.length} elements`
-          );
+    visit(node) {
+        try {
+            return super.visit(node);
         }
-        node.binding.bindings.forEach((symbol, i) => {
-          this.scope.setSymbol(symbol.name.value, val.getIndex(index(i)));
+        catch (e) {
+            if (e instanceof InterpreterError) {
+                throw e;
+            }
+            else {
+                throw this.makeError(e.message, node);
+            }
+        }
+    }
+    //region <PERVASIVES>
+    visitSourceFile(node) {
+        node.forEach((x) => this.visit(x));
+    }
+    visitParam(node) {
+        let name = node.name.value;
+        let ty = node.ty !== null ? this.visitType(node.ty) : undefined;
+        let default_ = node.default_ !== null ? this.visit(node.default_) : undefined;
+        if (node.optional) {
+            if (ty === undefined) {
+                throw this.makeError(`Optional param '${name}?' must have a type`, node);
+            }
+            ty = new stdlib_1.OptionT(ty);
+            if (default_ === undefined) {
+                default_ = stdlib_1.None;
+            }
+        }
+        if (default_ !== undefined) {
+            if (ty === undefined) {
+                ty = default_.ty;
+            }
+            else if (!default_.ty.isSubOf(ty)) {
+                // check that default value is of the correct type
+                throw this.makeError(`Default for param '${name}' is not compatible with ${ty.name} (got ${default_.ty.name})`, node.default_);
+            }
+        }
+        return new stdlib_1.Param(name, ty, default_);
+    }
+    visitType(node) {
+        let res = this.visit(node);
+        if (res instanceof stdlib_1.Type) {
+            return res;
+        }
+        else if (res instanceof stdlib_1.Value && res.isOfType(stdlib_1.NoneT)) {
+            return stdlib_1.NoneT;
+        }
+        else {
+            throw this.makeError(`Expected type, got ${res}`, node);
+        }
+    }
+    //endregion <PERVASIVES>
+    //region <TOP-LEVEL STATEMENTS>
+    visitInterfaceDefn(node) {
+        let name = node.name.value;
+        let interfaceDefn = this.scope.subscope(new stdlib_1.InterfaceDefn(name));
+        this.pushScope(interfaceDefn);
+        node.body.children.forEach((x) => {
+            if (x instanceof AST.StructDefn) {
+                interfaceDefn.setSymbol(x.name.value, this.visit(x));
+            }
+            if (x instanceof AST.EnumDefn) {
+                interfaceDefn.setSymbol(x.name.value, this.visit(x));
+            }
+            if (x instanceof AST.ErrorDefn) {
+                interfaceDefn.setSymbol('error#' + x.name.value, this.visit(x));
+            }
+            if (x instanceof AST.EventDefn) {
+                interfaceDefn.setSymbol('event#' + x.name.value, this.visit(x));
+            }
         });
-        this.visit(node.body);
-      }
-    } else {
-      for (let val = iter.next(); val !== undefined; val = iter.next()) {
-        if (!(val.ty instanceof StructDefn)) {
-          throw new Error(`tried to unpack ${val} as struct`);
-        }
-        node.binding.bindings.forEach((symbol, i) => {
-          let name = symbol.name.value;
-          this.scope.setSymbol(name, val.getSymbol(name));
+        this.popScope();
+        this.interpreter.setSymbol(name, interfaceDefn);
+    }
+    visitContractDefn(node) {
+        let name = node.name.value;
+        let contractDefn = this.scope.subscope(new stdlib_1.ContractDefn(name));
+        this.pushScope(contractDefn);
+        node.body.children.forEach((x) => {
+            if (x instanceof AST.StructDefn) {
+                this.scope.setSymbol(x.name.value, this.visit(x));
+            }
+            if (x instanceof AST.EnumDefn) {
+                this.scope.setSymbol(x.name.value, this.visit(x));
+            }
+            if (x instanceof AST.FnDefn) {
+                let name = x.name.value;
+                this.scope.setSymbol(x.fallible ? name + '#!' : name, this.scope.subscope(this.visitFnDefn(x)));
+            }
+            if (x instanceof AST.StateDefnBlock) {
+                x.descendantsOfType(AST.StateDefnItem).forEach((itemDefn) => {
+                    let key = itemDefn.name.value;
+                    let ty = this.visitType(itemDefn.ty);
+                    let default_ = itemDefn.default_ !== null
+                        ? this.visit(itemDefn.default_)
+                        : ty.defaultValue();
+                    let item = new stdlib_1.StateItem(key, ty, default_);
+                    this.scope.setSymbol('#state#' + key, item);
+                });
+                x.descendantsOfType(AST.StateDefnMap).forEach((mapDefn) => {
+                    let prefix = mapDefn.name.value;
+                    let ty = this.visitType(mapDefn.ty);
+                    let mapKeys = mapDefn.mapKeys.map((mk) => this.visit(mk));
+                    let default_ = mapDefn.default_ !== null
+                        ? this.visit(mapDefn.default_)
+                        : ty.defaultValue();
+                    let map = new stdlib_1.StateMap(prefix, mapKeys, ty, default_);
+                    this.scope.setSymbol('#state#' + mapDefn.name.value, map);
+                });
+            }
+            if (x instanceof AST.ErrorDefn) {
+                this.scope.setSymbol('#error#' + x.name.value, this.visitErrorDefn(x));
+            }
+            if (x instanceof AST.EventDefn) {
+                this.scope.setSymbol('#event#' + x.name.value, this.visitEventDefn(x));
+            }
+            if (x instanceof AST.InstantiateDefn) {
+                this.visitInstantiateDefn(x);
+            }
+            if (x instanceof AST.ExecDefn) {
+                this.visitExecDefn(x);
+            }
+            if (x instanceof AST.QueryDefn) {
+                this.visitQueryDefn(x);
+            }
         });
-        this.visit(node.body);
-      }
+        this.popScope();
+        this.scope.setSymbol(name, contractDefn);
     }
-    this.scope = prevScope;
-  }
-  visitExecStmt(node) {
-    let val = this.visit(node.expr);
-    // check that val is an ExecMsg// @ts-ignore
-    if (!val.ty.isSubOf(exports.ExecMsgType)) {
-      throw new Error(`tried to execute non-executable type ${val.ty.name}`);
-    } else {
-      let res = this.scope.getSymbol('$res');
-      let msgs = res.getSymbol('msgs');
-      return msgs.push(val);
-    }
-  }
-  visitDelegateExecStmt(node) {
-    if (!(node.expr instanceof AST.FnCallExpr)) {
-      throw new Error(`delegate_exec! statement must be function call`);
-    } else if (!(node.expr.func instanceof AST.Ident)) {
-      throw new Error(
-        `delegate_exec! statement must directly call an exec #fn`
-      );
-    } else {
-      let fn = this.scope.getSymbol('exec#' + node.expr.func.value + '#impl');
-      let args = node.expr.args.map((x) => new Arg(this.visit(x)));
-      return this.callFn(fn, args);
-    }
-  }
-  visitInstantiateStmt(node) {
-    if (node.new_) {
-      if (!(node.expr instanceof AST.FnCallExpr)) {
-        throw new Error(`instantiate!# statement must be function call`);
-      } else if (
-        !(
-          node.expr.func instanceof AST.TypePath ||
-          node.expr.func instanceof AST.Ident
-        )
-      ) {
-        throw new Error(
-          `instantiate!# statement must directly use a contract name`
-        );
-      } else {
-        let ty;
-        if (node.expr.func instanceof AST.TypePath) {
-          ty = this.visit(node.expr.func);
-        } else {
-          ty = this.scope.getSymbol(node.expr.func.value);
+    //endregion <TOP-LEVEL STATEMENTS>
+    //region <TYPE EXPRESSIONS>
+    visitTypePath(node) {
+        let segments = node.segments.map((x) => x.value);
+        // start at the first segment, and keep going until we resolve the final segment
+        let curr = this.scope.getSymbol(segments[0]);
+        for (let i = 1; i < segments.length; i++) {
+            curr = curr.getSymbol(segments[i]);
         }
-        if (!(ty instanceof ContractDefn)) {
-          throw new Error(`tried to instantiate non-contract type ${ty}`);
-        } else {
-          let fn = ty.getSymbol('#instantiate');
-          let args = node.expr.args.map((x) => new Arg(this.visit(x)));
-          let val = this.callFn(fn, args);
-          if (val.ty.isSubOf(exports.InstantiateMsgType)) {
+        return curr;
+    }
+    visitOptionT(node) {
+        let ty = this.visitType(node.ty);
+        return new stdlib_1.OptionT(ty);
+    }
+    visitStructDefn(node) {
+        var _a, _b;
+        let name;
+        if (node instanceof AST.InstantiateDefn ||
+            node instanceof AST.InstantiateDecl) {
+            name = `#instantiate`;
+        }
+        else {
+            name = (_b = (_a = node.name) === null || _a === void 0 ? void 0 : _a.value) !== null && _b !== void 0 ? _b : '%anonymous';
+        }
+        let params = node.params.map((p, i) => {
+            var _a;
+            if (!p.name) {
+                throw this.makeError(`${name}: missing name for struct ${i}`, p);
+            }
+            if (!p.ty) {
+                throw this.makeError(`${name}: missing type for member ${p.name.value}`, p);
+            }
+            let ty = this.visit(p.ty);
+            let default_ = p.default_ ? this.visit(p.default_) : undefined;
+            if (p.optional) {
+                ty = new stdlib_1.OptionT(ty);
+                default_ = (_a = p.default_) !== null && _a !== void 0 ? _a : stdlib_1.None;
+            }
+            return new stdlib_1.Param(p.name.value, ty, default_);
+        });
+        return new stdlib_1.StructDefn(name, params);
+    }
+    visitEnumDefn(node) {
+        let name = node.name.value;
+        let enumDefn = new stdlib_1.EnumDefn(name);
+        node.variants.forEach((v) => {
+            if (v instanceof AST.EnumVariantStruct) {
+                let structDefn = this.visitStructDefn(v);
+                enumDefn.structVariant(name, structDefn.params);
+            }
+            if (v instanceof AST.EnumVariantUnit) {
+                enumDefn.unitVariant(name);
+            }
+        });
+        return enumDefn;
+    }
+    visitListT(node) {
+        if (node.len === null) {
+            return new stdlib_1.ListT(this.visit(node.ty));
+        }
+        else {
+            let ty = this.visitType(node.ty);
+            return new stdlib_1.TupleT(Array(node.len).fill(ty));
+        }
+    }
+    visitMapKeyDefn(node) {
+        let ty = this.visitType(node.ty);
+        let name = node.name !== null ? node.name.value : undefined;
+        return new stdlib_1.MapKey(ty, name);
+    }
+    visitFnDefn(node) {
+        let name = node.name.value;
+        let params = node.params.map((p) => this.visit(p));
+        let fallible = node.fallible;
+        if (fallible) {
+            name += '!';
+        }
+        let retTy = node.retTy !== null ? this.visit(node.retTy) : undefined;
+        return new stdlib_1.FnDefn(name, fallible, params, retTy, node.body);
+    }
+    /**
+     * This visits the function definition for the instantiate message.
+     * @param node
+     */
+    visitInstantiateDefn(node) {
+        const instantiateMsg = this.visitStructDefn(node);
+        instantiateMsg.name = this.scope.name + '.#instantiate';
+        instantiateMsg.structFn.name = instantiateMsg.name;
+        let params = node.params.map((p) => this.visit(p));
+        let instantiateImpl = this.scope.subscope(new stdlib_1.FnDefn('#instantiate', false, params, undefined, node.body));
+        this.scope.setSymbol('#instantiate', instantiateMsg);
+        this.scope.setSymbol('#instantiate#impl', instantiateImpl);
+    }
+    visitExecDefn(node) {
+        let execMsg = this.visitStructDefn(node);
+        execMsg.name = `exec ${this.scope.name}.#${node.name.value}`;
+        let params = node.params.map((p) => this.visit(p));
+        let execImpl = this.scope.subscope(new stdlib_1.FnDefn(execMsg.name, false, params, undefined, node.body));
+        this.scope.setSymbol(`#exec#${node.name.value}`, execImpl);
+        this.scope.setSymbol(`#exec${node.name.value}#impl`, execImpl);
+    }
+    visitQueryDefn(node) {
+        let queryMsg = this.visitStructDefn(node);
+        queryMsg.name = `query ${this.scope.name}.#${node.name.value}`;
+        let params = node.params.map((p) => this.visit(p));
+        let queryImpl = this.scope.subscope(new stdlib_1.FnDefn(queryMsg.name, false, params, node.retTy !== null ? this.visit(node.retTy) : undefined, node.body));
+        this.scope.setSymbol(`#query#${node.name.value}`, queryImpl);
+        this.scope.setSymbol(`#query${node.name.value}#impl`, queryImpl);
+    }
+    //endregion <CONTRACT ITEMS>
+    //region <STATEMENTS>
+    visitBlock(node) {
+        let res = stdlib_1.None;
+        for (let stmt of node.children) {
+            res = this.visit(stmt);
+            if (res instanceof Return) {
+                return res.value;
+            }
+            else if (res instanceof Failure) {
+                return res;
+            }
+        }
+        return res;
+    }
+    visitDebugStmt(node) {
+        debugger;
+        for (let stmt of node.stmts) {
+            let a = this.visit(stmt);
+            console.log(a);
+        }
+    }
+    visitLetStmt(node) {
+        if (node.expr !== null) {
+            let val = this.visit(node.expr);
+            if (node.binding instanceof AST.IdentBinding) {
+                this.scope.setSymbol(node.binding.name.value, val);
+            }
+            else if (node.binding instanceof AST.TupleBinding) {
+                if (!val.isOfTypeClass(stdlib_1.TupleT) && !val.isOfTypeClass(stdlib_1.ListT)) {
+                    throw this.makeError(`tried to unpack ${val} as tuple of ${node.binding.bindings.length} elements`, node.expr);
+                }
+                node.binding.bindings.forEach((symbol, i) => {
+                    let name = symbol.name.value;
+                    this.scope.setSymbol(name, val.getIndex(idx(i)));
+                });
+            }
+            else {
+                // struct binding
+                if (val.isOfTypeClass(stdlib_1.StructDefn)) {
+                    throw this.makeError(`tried to unpack ${val} as struct`, node.expr);
+                }
+                node.binding.bindings.forEach((symbol) => {
+                    let name = symbol.name.value;
+                    this.scope.setSymbol(name, val.getSymbol(name));
+                });
+            }
+        }
+        else {
+            throw this.makeError(`let statement without expression not yet implemented`, node);
+        }
+    }
+    visitAssignStmt(node) {
+        let rhs = this.visit(node.rhs);
+        if (node.lhs instanceof AST.IdentLHS) {
+            this.scope.setSymbol(node.lhs.symbol.value, rhs);
+        }
+        else if (node.lhs instanceof AST.DotLHS) {
+            let obj = this.visit(node.lhs.obj);
+            let member = node.lhs.member.value;
+            let tbl = obj.firstTableWithSymbol(member);
+            if (tbl === undefined) {
+                throw this.makeError(`tried to assign to non-existent member '${member}' of ${obj}`, node.lhs.member);
+            }
+            else {
+                tbl.setSymbol(member, rhs);
+            }
+        }
+        else {
+            // index assignment
+            let obj = this.visit(node.lhs.obj);
+            if (obj.isOfTypeClass(stdlib_1.ListT) ||
+                obj.isOfTypeClass(stdlib_1.TupleT) ||
+                obj instanceof StateMapAccessor) {
+                let args = node.lhs.args.map((x) => new stdlib_1.Arg(this.visit(x)));
+                return obj.setIndex(args, rhs);
+            }
+            else {
+                throw this.makeError(`tried to index assign to non-indexable type ${obj.ty}`, node.lhs.obj);
+            }
+        }
+    }
+    visitIfStmt(node) {
+        let pred = this.visit(node.pred);
+        if (pred.isOfType(stdlib_1.CWSBool.TYPE)) {
+            if (stdlib_1.CWSBool.isTrue(pred)) {
+                return this.visit(node.then);
+            }
+            else {
+                return node.else_ !== null ? this.visit(node.else_) : stdlib_1.None;
+            }
+        }
+        else {
+            // @ts-ignore
+            throw this.makeError(`predicate must be a Bool, got ${pred.ty}`, node.pred);
+        }
+    }
+    visitForStmt(node) {
+        let expr = this.visit(node.iter);
+        // make sure it is iterable
+        if (!expr.isOfTypeClass(stdlib_1.ListT) && !expr.isOfTypeClass(stdlib_1.TupleT)) {
+            throw this.makeError(`tried to iterate over non-iterable type ${expr.ty}`, node.iter);
+        }
+        // get iterator
+        let iter = expr.getIter();
+        // make new scope
+        this.pushScope(this.scope.subscope());
+        // bindings
+        if (node.binding instanceof AST.IdentBinding) {
+            let name = node.binding.name.value;
+            for (let val = iter.next(); val !== undefined; val = iter.next()) {
+                this.scope.setSymbol(name, val);
+                this.visit(node.body);
+            }
+        }
+        else if (node.binding instanceof AST.TupleBinding) {
+            for (let val = iter.next(); val !== undefined; val = iter.next()) {
+                // make sure val is iterable
+                if (!val.isOfTypeClass(stdlib_1.TupleT) && !val.isOfTypeClass(stdlib_1.ListT)) {
+                    throw this.makeError(`tried to unpack ${val} as tuple of ${node.binding.bindings.length} elements`, node.binding);
+                }
+                node.binding.bindings.forEach((symbol, i) => {
+                    this.scope.setSymbol(symbol.name.value, val.getIndex(idx(i)));
+                });
+                this.visit(node.body);
+            }
+        }
+        else {
+            for (let val = iter.next(); val !== undefined; val = iter.next()) {
+                if (!val.isOfTypeClass(stdlib_1.StructDefn)) {
+                    throw this.makeError(`tried to unpack ${val} as struct`, node.binding);
+                }
+                node.binding.bindings.forEach((symbol) => {
+                    let name = symbol.name.value;
+                    this.scope.setSymbol(name, val.getSymbol(name));
+                });
+                this.visit(node.body);
+            }
+        }
+        this.popScope();
+    }
+    visitEmitStmt(node) {
+        if (!(node.expr instanceof AST.FnCallExpr)) {
+            throw this.makeError(`emit statement must be a call expression`, node.expr);
+        }
+        else if (!(node.expr.func instanceof AST.TypePath)) {
+            throw this.makeError(`emit statement must be a call to an event type`, node.expr.func);
+        }
+        else {
+            // TODO: make it more general
+            let name = node.expr.func.segments.toArray()[0].value;
+            let ty = this.scope.getSymbol('#event#' + name);
+            if (!ty.isSubOf(stdlib_1.EventT)) {
+                throw this.makeError(`emit statement must be a call to an event type`, node.expr);
+            }
+            let args = node.expr.args.map((x) => this.visitArg(x));
+            let val = ty.value(args);
             let res = this.scope.getSymbol('$res');
-            let msgs = res.getSymbol('msgs');
-            msgs.push(val);
-          } else {
-            throw new Error(
-              `tried to instantiate non-InstantiateMsg type ${val.ty.name}`
-            );
-          }
+            let events = res.getSymbol('events');
+            this.callMethod(events, 'push', [val]);
         }
-      }
-    } else {
-      // not #new
-      let val = this.visit(node.expr);
-      if (val.ty.isSubOf(exports.InstantiateMsgType)) {
-        let res = this.scope.getSymbol('$res');
-        let msgs = res.getSymbol('msgs');
-        msgs.push(val);
-      } else {
-        throw new Error(
-          `tried to instantiate non-InstantiateMsg type ${val.ty.name}`
-        );
-      }
     }
-  }
-  visitReturnStmt(node) {
-    let val = this.visit(node.expr);
-    return new Return(val);
-  }
-  visitFailStmt(node) {
-    let result = this.visit(node.expr);
-    if (!check(exports.ErrorType, result) && !check(CWSString.TYPE, result)) {
-      throw new Error(
-        `tried to fail with value other than Error or String: ${result}`
-      );
-    } else {
-      if (check(CWSString.TYPE, result)) {
-        result = exports.Generic.make({ message: result });
-      }
-      return new Failure(result);
+    visitExecStmt(node) {
+        let val = this.visit(node.expr);
+        // check that val is an ExecMsg// @ts-ignore
+        if (!val.ty.isSubOf(stdlib_1.ExecMsgT)) {
+            throw this.makeError(`tried to execute non-exec type ${val.ty.name}`, node.expr);
+        }
+        else {
+            let res = this.scope.getSymbol('$res');
+            let messages = res.getSymbol('msgs');
+            this.callMethod(messages, 'push', [val]);
+        }
     }
-  }
-  //endregion <STATEMENTS>
-  //region <EXPRESSIONS>
-  visitArg(node) {
-    const val = this.visit(node.expr);
-    return new Arg(val, node.name !== null ? node.name.value : undefined);
-  }
-  visitDotExpr(node) {
-    const obj = this.visit(node.obj);
-    if (node.unwrap !== null) {
-      obj.getSymbol(node.member.value);
-    } else if (node.unwrap === AST.UnwrapOp.OR_NONE) {
-      if (check(exports.None, obj)) {
-        return exports.None;
-      } else {
+    visitDelegateExecStmt(node) {
+        if (!(node.expr instanceof AST.FnCallExpr)) {
+            throw this.makeError(`delegate_exec! statement must be function call`, node.expr);
+        }
+        else if (!(node.expr.func instanceof AST.Ident)) {
+            throw this.makeError(`delegate_exec! statement must directly call an exec #fn`, node.expr);
+        }
+        else {
+            let fn = this.scope.getSymbol('exec#' + node.expr.func.value + '#impl');
+            let args = node.expr.args.map((x) => new stdlib_1.Arg(this.visit(x)));
+            return this.callFn(fn, args);
+        }
+    }
+    visitInstantiateStmt(node) {
+        if (node.new_) {
+            if (!(node.expr instanceof AST.FnCallExpr)) {
+                throw this.makeError(`instantiate!# statement must be function call`, node.expr);
+            }
+            else if (!(node.expr.func instanceof AST.TypePath ||
+                node.expr.func instanceof AST.Ident)) {
+                throw this.makeError(`instantiate!# statement must directly use a contract name`, node.expr);
+            }
+            else {
+                let ty;
+                if (node.expr.func instanceof AST.TypePath) {
+                    ty = this.visitType(node.expr.func);
+                }
+                else {
+                    ty = this.scope.getSymbol(node.expr.func.value);
+                }
+                if (!(ty instanceof stdlib_1.ContractDefn)) {
+                    throw this.makeError(`tried to instantiate non-contract type ${ty}`, node.expr);
+                }
+                else {
+                    let fn = ty.getSymbol('#instantiate');
+                    let args_ = node.expr.args.map((x) => new stdlib_1.Arg(this.visit(x)));
+                    let val = this.callFn(fn, args_);
+                    if (val.ty.isSubOf(stdlib_1.InstantiateMsgT)) {
+                        let res = this.scope.getSymbol('$res');
+                        let messages = res.getSymbol('messages');
+                        this.callMethod(messages, 'push', [val]);
+                    }
+                    else {
+                        throw this.makeError(`tried to instantiate non-InstantiateMsg type ${val.ty.name}`, node.expr);
+                    }
+                }
+            }
+        }
+        else {
+            // not #new
+            let val = this.visit(node.expr);
+            if (val.ty.isSubOf(stdlib_1.InstantiateMsgT)) {
+                let res = this.scope.getSymbol('$res');
+                let messages = res.getSymbol('messages');
+                this.callMethod(messages, 'push', [val]);
+            }
+            else {
+                throw this.makeError(`tried to instantiate non-InstantiateMsg type ${val.ty.name}`, node.expr);
+            }
+        }
+    }
+    visitReturnStmt(node) {
+        let val = this.visit(node.expr);
+        return new Return(val);
+    }
+    visitFailStmt(node) {
+        let result = this.visit(node.expr);
+        if (!result.isInstanceOf(stdlib_1.ErrorT) && !result.isInstanceOf(stdlib_1.StringT)) {
+            throw this.makeError(`tried to fail with value other than Error or String: ${result}`, node.expr);
+        }
+        else {
+            if (result.isOfType(stdlib_1.StringT)) {
+                result = stdlib_1.Err_Generic.value(args([], { message: result }));
+            }
+            return new Failure(result);
+        }
+    }
+    //endregion <STATEMENTS>
+    //region <EXPRESSIONS>
+    visitArg(node) {
+        const val = this.visit(node.expr);
+        return new stdlib_1.Arg(val, node.name !== null ? node.name.value : undefined);
+    }
+    visitDotExpr(node) {
+        const obj = this.visit(node.obj);
+        if (node.unwrap === null) {
+            return obj.getSymbol(node.member.value);
+        }
+        else if (node.unwrap === AST.UnwrapOp.OR_NONE) {
+            if (obj.isOfType(stdlib_1.NoneT)) {
+                return stdlib_1.None;
+            }
+            else {
+                return obj.getSymbol(node.member.value);
+            }
+        }
+        else {
+            if (obj.isOfType(stdlib_1.NoneT)) {
+                // TODO: result types
+                throw this.makeError(`tried to access member ${node.member.value} of None`, node.member);
+            }
+            else {
+                return obj.getSymbol(node.member.value);
+            }
+        }
+    }
+    visitAsExpr(node) {
+        throw new Error(`not implemented: visitAsExpr`);
+    }
+    visitIndexExpr(node) {
+        const obj = this.visit(node.obj);
+        if (obj.isOfTypeClass(stdlib_1.ListT) || obj.isOfTypeClass(stdlib_1.TupleT)) {
+            const args = node.args.map((x) => this.visit(x));
+            return obj.getIndex(args);
+        }
+        else {
+            throw this.makeError(`tried to index non-tuple/list: ${obj.ty}`, node.obj);
+        }
+    }
+    visitDColonExpr(node) {
+        const obj = this.visit(node.obj);
         return obj.getSymbol(node.member.value);
-      }
-    } else {
-      if (check(exports.None, obj)) {
-        // TODO: result types
-        throw new Error(`tried to access member ${node.member.value} of None`);
-      } else {
-        return obj.getSymbol(node.member.value);
-      }
     }
-  }
-  visitAsExpr(node) {
-    throw new Error(`not implemented: visitAsExpr`);
-  }
-  visitIndexExpr(node) {
-    const obj = this.visit(node.obj);
-    if (obj.ty instanceof ListT || obj.ty instanceof TupleT) {
-      const args = node.args.map((x) => this.visitArg(x));
-      return obj.getIndex(args);
-    } else {
-      throw new Error(`tried to index non-tuple/list: ${obj.ty}`);
+    callMethod(obj, method, argVals) {
+        let methodFn = obj.getSymbol(method);
+        return this.callFn(methodFn, args(argVals));
     }
-  }
-  visitDColonExpr(node) {
-    const obj = this.visit(node.obj);
-    return obj.getSymbol(node.member.value);
-  }
-  callFn(fn, args) {
-    // create a new scope for the function call
-    const prevScope = this.scope;
-    this.scope = this.scope.subscope(new symbol_table_1.SymbolTable());
-    fn.setArgsInScope(this.scope, args);
-    // evaluate the function body in the new scope
-    const result = this.visit(fn.body);
-    // reset scope
-    this.scope = prevScope;
-    return result;
-  }
-  visitFnCallExpr(node) {
-    const func = this.visit(node.func);
-    if (!(func instanceof FnDefn)) {
-      throw new Error(`tried to call non-function ${func}`);
-    }
-    // evaluate the arguments in the present scope
-    const args = node.args.map((x) => this.visitArg(x));
-    return this.callFn(func, args);
-  }
-  executeBinOp(op, lhs, rhs) {
-    return lhs.ty.callOperator(op, lhs, rhs);
-  }
-  visitBinOpExpr(node) {
-    const lhs = this.visit(node.lhs);
-    const rhs = this.visit(node.rhs);
-    return this.executeBinOp(node.op, lhs, rhs);
-  }
-  visitIsExpr(node) {
-    const lhs = this.visit(node.lhs);
-    const rhs = this.visit(node.rhs);
-    let result = check(rhs, lhs);
-    return node.negative ? Bool.FALSE : Bool.TRUE;
-  }
-  visitNotExpr(node) {
-    const expr = this.visit(node.expr);
-    if (check(Bool.TYPE, expr)) {
-      return Bool.isTrue(expr) ? Bool.FALSE : Bool.TRUE;
-    } else if (check(exports.None, expr)) {
-      return Bool.TRUE;
-    } else {
-      throw new Error(
-        // @ts-ignore
-        `tried to negate on expression other than Bool or None: ${expr.ty}`
-      );
-    }
-  }
-  visitNoneCheckExpr(node) {
-    const expr = this.visit(node.expr);
-    return check(exports.None, expr) ? Bool.TRUE : Bool.FALSE;
-  }
-  visitTryCatchElseExpr(node) {
-    let prevScope = this.scope;
-    this.scope = prevScope.subscope(new symbol_table_1.SymbolTable());
-    const result = this.visit(node.body); // Val, ErrorInstance
-    if (check(exports.ErrorType, result)) {
-      for (let c of node.catch_.toArray()) {
-        let ty = this.visit(c.ty);
-        if (check(ty, result)) {
-          if (c.name !== null) {
-            this.scope.setSymbol(c.name.value, result);
-          }
-          return this.visit(c.body);
+    callFn(fn, args, scope) {
+        // set function definition's parent scope to the intermediate scope
+        // create a new scope for the function call
+        this.pushScope(fn.subscope(scope));
+        fn.setArgsInScope(this.scope, args);
+        let result;
+        if (fn instanceof stdlib_1.MethodDefn) {
+            result = fn.call(args[0].value, ...args.slice(1).map((x) => x.value));
         }
-      }
-      if (node.else_ !== null) {
-        return this.visit(node.else_);
-      } else {
-        return new Failure(result);
-      }
-    } else if (check(exports.None, result)) {
-      if (node.else_ !== null) {
-        return this.visit(node.else_);
-      } else {
-        return new Failure(exports.UnwrapNone.value(null));
-      }
-    } else {
-      return result;
-    }
-  }
-  visitFailExpr(node) {
-    let result = this.visit(node.expr);
-    if (!check(exports.ErrorType, result) && !check(CWSString.TYPE, result)) {
-      throw new Error(
-        `tried to fail with value other than Error or String: ${result}`
-      );
-    } else {
-      if (check(CWSString.TYPE, result)) {
-        result = exports.Generic.make({ message: result });
-      }
-      return new Failure(result);
-    }
-  }
-  visitClosure(node) {
-    let params = node.params.map((x) => this.visitParam(x));
-    let retTy = node.retTy !== null ? this.visit(node.retTy) : undefined;
-    return new FnDefn('%anonymous', node.fallible, params, retTy, node.body);
-  }
-  visitTupleExpr(node) {
-    let exprs = node.exprs.map((x) => this.visit(x));
-    let tupType = new TupleT(exprs.map((x) => x.ty));
-    return new TupleInstance(tupType, exprs);
-  }
-  visitStructExpr(node) {
-    if (node.ty === null) {
-      let args = {};
-      let ty = new StructDefn(
-        '%anonymous',
-        node.args.map((m) => {
-          let value;
-          if (m.value === null) {
-            value = this.visit(m.name);
-          } else {
-            value = this.visit(m.value);
-          }
-          args[m.name.value] = value;
-          return new Param(m.name.value, value.ty);
-        })
-      );
-      return ty.make(args);
-    } else {
-      let ty = this.visit(node.ty);
-      if (ty instanceof StructDefn) {
-        throw new Error(`tried to instantiate non-struct type: ${ty}`);
-      }
-      let args = {};
-      for (let m of node.args.toArray()) {
-        let value;
-        if (m.value === null) {
-          value = this.visit(m.name);
-        } else {
-          value = this.visit(m.value);
+        else {
+            // evaluate the function body in the new scope
+            result = this.visit(fn.body);
         }
-        args[m.name.value] = value;
-      }
-      return ty.make(args);
+        // reset scope
+        this.popScope();
+        return result;
     }
-  }
-  visitUnitVariantExpr(node) {
-    let ty = this.visit(node.ty);
-    return ty.value(null);
-  }
-  visitIdent(node) {
-    return this.scope.getSymbol(node.value);
-  }
-  visitGroupedExpr(node) {
-    return this.visit(node.expr);
-  }
-  visitGrouped2Expr(node) {
-    return this.visit(node.expr);
-  }
-  //endregion <EXPRESSIONS>
-  //region <LITERALS>
-  visitStringLit(node) {
-    return CWSString.TYPE.value(node.value);
-  }
-  visitIntLit(node) {
-    return Int.TYPE.value(BigInt(node.value));
-  }
-  visitDecLit(node) {
-    return Dec.TYPE.value(node.value);
-  }
-  visitBoolLit(node) {
-    if (node.value === 'true') {
-      return Bool.TRUE;
-    } else {
-      return Bool.FALSE;
+    visitFnCallExpr(node) {
+        const func = this.visit(node.func);
+        if (func instanceof DebugCall) {
+            return func.call(this.interpreter, node.args);
+        }
+        const args = node.args.map((x) => this.visitArg(x));
+        if (func instanceof stdlib_1.FnDefn) {
+            if (func.fallible && !node.fallible) {
+                throw this.makeError(`tried to call fallible function '${func.name}' without '!'`, node.func);
+            }
+            return this.callFn(func, args);
+        }
+        else if (func instanceof stdlib_1.StructDefn) {
+            return func.value(args);
+        }
+        else if (func instanceof stdlib_1.Type) {
+            if (args.length !== 1) {
+                throw this.makeError(`can only call type with one argument`, node);
+            }
+            if (node.fallible) {
+                return func.tryFromVal(args[0].value);
+            }
+            else {
+                return func.fromVal(args[0].value);
+            }
+        }
+        else {
+            throw this.makeError(`tried to call non-function: ${func.ty}`, node.func);
+        }
     }
-  }
-  visitNoneLit(node) {
-    return exports.None;
-  }
+    executeBinOp(op, lhs, rhs) {
+        return lhs.ty.callOperator(op, lhs, rhs);
+    }
+    visitBinOpExpr(node) {
+        const lhs = this.visit(node.lhs);
+        const rhs = this.visit(node.rhs);
+        return this.executeBinOp(node.op, lhs, rhs);
+    }
+    visitAndExpr(node) {
+        const lhs = this.visit(node.lhs);
+        if (lhs.isOfType(stdlib_1.BoolT)) {
+            if (lhs === stdlib_1.CWSBool.FALSE) {
+                // short-circuit
+                return stdlib_1.CWSBool.FALSE;
+            }
+            else {
+                const rhs = this.visit(node.rhs);
+                if (rhs.isOfType(stdlib_1.BoolT)) {
+                    return rhs;
+                }
+                else {
+                    throw this.makeError(`tried to AND non-boolean: ${rhs}`, node.rhs);
+                }
+            }
+        }
+        else {
+            throw this.makeError(`tried to AND non-boolean: ${lhs}`, node.lhs);
+        }
+    }
+    visitOrExpr(node) {
+        const lhs = this.visit(node.lhs);
+        if (lhs.isOfType(stdlib_1.BoolT)) {
+            if (lhs === stdlib_1.CWSBool.TRUE) {
+                // short-circuit
+                return stdlib_1.CWSBool.TRUE;
+            }
+            else {
+                const rhs = this.visit(node.rhs);
+                if (rhs.isOfType(stdlib_1.BoolT)) {
+                    return rhs;
+                }
+                else {
+                    throw this.makeError(`tried to OR non-boolean: ${rhs}`, node.rhs);
+                }
+            }
+        }
+        else {
+            throw this.makeError(`tried to OR non-boolean: ${lhs}`, node.lhs);
+        }
+    }
+    visitIsExpr(node) {
+        const lhs = this.visit(node.lhs);
+        const rhs = this.visitType(node.rhs);
+        let result = lhs.isOfType(rhs);
+        return node.negative ? stdlib_1.CWSBool.FALSE : stdlib_1.CWSBool.TRUE;
+    }
+    visitInExpr(node) {
+        const lhs = this.visit(node.lhs);
+        const rhs = this.visit(node.rhs);
+        if (rhs.isOfTypeClass(stdlib_1.ListT) || rhs.isOfTypeClass(stdlib_1.TupleT)) {
+            // @ts-ignore
+            const items = rhs;
+            if (items.operatorIn(lhs)) {
+                return stdlib_1.CWSBool.TRUE;
+            }
+            else {
+                return stdlib_1.CWSBool.FALSE;
+            }
+        }
+        else {
+            throw this.makeError(`tried to check if value is in non-list/tuple: ${rhs}`, node.rhs);
+        }
+    }
+    visitNotExpr(node) {
+        const expr = this.visit(node.expr);
+        if (expr.isOfType(stdlib_1.CWSBool.TYPE)) {
+            return stdlib_1.CWSBool.isTrue(expr) ? stdlib_1.CWSBool.FALSE : stdlib_1.CWSBool.TRUE;
+        }
+        else if (expr.isOfType(stdlib_1.NoneT)) {
+            return stdlib_1.CWSBool.TRUE;
+        }
+        else {
+            throw this.makeError(
+            // @ts-ignore
+            `tried to negate on expression other than Bool or None: ${expr.ty}`, node.expr);
+        }
+    }
+    visitNoneCheckExpr(node) {
+        const expr = this.visit(node.expr);
+        return expr.isOfType(stdlib_1.NoneT) ? stdlib_1.CWSBool.FALSE : stdlib_1.CWSBool.TRUE;
+    }
+    visitTryCatchElseExpr(node) {
+        // TODO: might need to push / pop scope around this.visit
+        this.pushScope(this.scope.subscope());
+        const result = this.visit(node.body); // Val, ErrorInstance
+        this.popScope();
+        if (result instanceof Failure) {
+            for (let c of node.catch_.toArray()) {
+                let ty = this.visitType(c.ty);
+                if (result.error.isOfType(ty)) {
+                    if (c.name !== null) {
+                        this.scope.setSymbol(c.name.value, result.error);
+                    }
+                    return this.visit(c.body);
+                }
+            }
+            if (node.else_ !== null) {
+                return this.visit(node.else_);
+            }
+            else {
+                return result;
+            }
+        }
+        else if (result.isOfType(stdlib_1.NoneT)) {
+            if (node.else_ !== null) {
+                return this.visit(node.else_);
+            }
+            else {
+                return new Failure(stdlib_1.Err_UnwrapNone.value([]));
+            }
+        }
+        else {
+            return result;
+        }
+    }
+    visitFailExpr(node) {
+        let result = this.visit(node.expr);
+        if (!result.isOfType(stdlib_1.ErrorT) && !result.isOfType(stdlib_1.StringT)) {
+            throw this.makeError(`tried to fail with value other than Error or String: ${result}`, node.expr);
+        }
+        else {
+            if (result.isOfType(stdlib_1.StringT)) {
+                result = stdlib_1.Err_Generic.value([arg(result, 'message')]);
+            }
+            return new Failure(result);
+        }
+    }
+    visitClosure(node) {
+        let params = node.params.map((x) => this.visit(x));
+        let retTy = node.retTy !== null ? this.visitType(node.retTy) : undefined;
+        return new stdlib_1.FnDefn('%anonymous', node.fallible, params, retTy, node.body);
+    }
+    visitTupleExpr(node) {
+        let exprs = node.exprs.map((x) => this.visit(x));
+        if (exprs.length === 0) {
+            return new stdlib_1.ListInstance(new stdlib_1.ListT(stdlib_1.AnyT), []);
+        }
+        if (exprs.every((x) => x.ty.isEq(exprs[0].ty))) {
+            return new stdlib_1.ListInstance(new stdlib_1.ListT(exprs[0].ty), exprs);
+        }
+        let tupType = new stdlib_1.TupleT(exprs.map((x) => x.ty));
+        return new stdlib_1.TupleInstance(tupType, exprs);
+    }
+    visitStructExpr(node) {
+        if (node.ty === null) {
+            let args = [];
+            let ty = new stdlib_1.StructDefn('%anonymous', node.args.map((m) => {
+                let value;
+                if (m.value === null) {
+                    value = this.visit(m.name);
+                }
+                else {
+                    value = this.visit(m.value);
+                }
+                args.push(arg(value, m.name.value));
+                return new stdlib_1.Param(m.name.value, value.ty);
+            }));
+            return ty.value(args);
+        }
+        else {
+            let ty = this.visitType(node.ty);
+            if (!(ty instanceof stdlib_1.StructDefn)) {
+                throw this.makeError(`tried to instantiate non-struct type: ${ty}`, node.ty);
+            }
+            let args = [];
+            for (let m of node.args.toArray()) {
+                let value;
+                if (m.value === null) {
+                    value = this.visit(m.name);
+                }
+                else {
+                    value = this.visit(m.value);
+                }
+                args.push(arg(value, m.name.value));
+            }
+            return ty.value(args);
+        }
+    }
+    visitUnitVariantExpr(node) {
+        let ty = this.visit(node.ty);
+        return ty.value(null);
+    }
+    visitIdent(node) {
+        // special ! function case
+        if (!this.scope.hasSymbol(node.value) &&
+            this.scope.hasSymbol(node.value + '#!')) {
+            return this.scope.getSymbol(node.value + '#!');
+        }
+        return this.scope.getSymbol(node.value);
+    }
+    visitGroupedExpr(node) {
+        return this.visit(node.expr);
+    }
+    visitGrouped2Expr(node) {
+        return this.visit(node.expr);
+    }
+    //endregion <EXPRESSIONS>
+    //region <LITERALS>
+    visitStringLit(node) {
+        return stdlib_1.StringT.value(node.value);
+    }
+    visitIntLit(node) {
+        return stdlib_1.IntT.value(BigInt(node.value));
+    }
+    visitDecLit(node) {
+        return stdlib_1.DecT.value(node.value);
+    }
+    visitBoolLit(node) {
+        if (node.value === 'true') {
+            return stdlib_1.CWSBool.TRUE;
+        }
+        else {
+            return stdlib_1.CWSBool.FALSE;
+        }
+    }
+    visitNoneLit(node) {
+        return stdlib_1.None;
+    }
 }
 exports.CWScriptInterpreterVisitor = CWScriptInterpreterVisitor;
 //endregion <VISITOR>

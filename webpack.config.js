@@ -1,12 +1,13 @@
 const webpack = require('webpack');
 const TsconfigPathsPlugin = require('tsconfig-paths-webpack-plugin');
 const TerserPlugin = require('terser-webpack-plugin');
+const { resolve } = require('path');
 
 // const BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPlugin;
 
 const commonConfig = {
   mode: 'production',
-  entry: './src/index.ts',
+  entry: ['./src/index.ts'],
   devtool: 'source-map',
   output: {
     globalObject: 'this',
@@ -44,6 +45,7 @@ const webConfig = {
     ...commonConfig.resolve,
     fallback: {
       stream: require.resolve('stream-browserify'),
+      path: require.resolve('path-browserify'),
       buffer: require.resolve('buffer'),
       assert: require.resolve('assert'),
       'process/browser': require.resolve('process'),

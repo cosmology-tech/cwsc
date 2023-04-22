@@ -10,8 +10,20 @@ class SymbolTable {
         if (name in this.symbols) {
             return this.symbols[name];
         }
+        if (name + '#!' in this.symbols) {
+            return this.symbols[name + '#!'];
+        }
         if (this.parent) {
             return this.parent.getSymbol(name);
+        }
+        throw new Error(`symbol ${name} not found`);
+    }
+    getOwnSymbol(name) {
+        if (name in this.symbols) {
+            return this.symbols[name];
+        }
+        if (name + '#!' in this.symbols) {
+            return this.symbols[name + '#!'];
         }
         throw new Error(`symbol ${name} not found`);
     }

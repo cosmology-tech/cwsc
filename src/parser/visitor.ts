@@ -1,10 +1,10 @@
 import { ParserRuleContext } from 'antlr4ts';
 import { AbstractParseTreeVisitor } from 'antlr4ts/tree/AbstractParseTreeVisitor';
 
-import * as P from '@/grammar/CWScriptParser';
-import { CWScriptParserVisitor as ANTLRCWScriptParserVisitor } from '@/grammar/CWScriptParserVisitor';
-import * as AST from '@/ast';
-import { Expr } from '@/ast';
+import * as P from '../grammar/CWScriptParser';
+import { CWScriptParserVisitor as ANTLRCWScriptParserVisitor } from '../grammar/CWScriptParserVisitor';
+import * as AST from '../ast';
+import { Expr } from '../ast';
 
 export class CWScriptASTBuilderVisitor
   extends AbstractParseTreeVisitor<AST.AST>

@@ -118,7 +118,7 @@ contract TerraswapToken implements CW20 {
   // you need to call it like this: validate_accounts!(...)
   fn validate_accounts!(accounts: CW20.Coin[]) {
     let addresses = [];
-  	for { address } in accounts {
+  	for { address } in [accounts, []] {
   	  if (address in addresses) {
   	    fail! DuplicateInitialBalanceAddress(address);
   	  }
@@ -150,6 +150,7 @@ contract TerraswapToken implements CW20 {
     initial_balances: CW20.Coin[], // we use the fully qualified type here
     mint?: MinterData // MinterResponse is loaded in because we are implementing the type
   ) {
+    bepo
     validate_accounts!(initial_balances) // usage of validate_accounts! function
     let total_supply = create_accounts!($state, initial_balances)
 

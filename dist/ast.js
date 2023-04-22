@@ -12,7 +12,7 @@ var __rest = (this && this.__rest) || function (s, e) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ForStmt = exports.IfStmt = exports.MemberVal = exports.StructExpr = exports.TupleExpr = exports.IndexLHS = exports.DotLHS = exports.IdentLHS = exports.AssignStmt = exports.AssignOp = exports.Annotation = exports.ConstStmt = exports.StructBinding = exports.TupleBinding = exports.IdentBinding = exports.BindingType = exports.LetStmt = exports.FnDefn = exports.ReplyDefn = exports.QueryDecl = exports.QueryDefn = exports.ExecDecl = exports.ExecDefn = exports.InstantiateDecl = exports.InstantiateDefn = exports.MapKeyDefn = exports.StateDefnMap = exports.StateDefnItem = exports.StateDefnBlock = exports.EventDefnBlock = exports.EventDefn = exports.ErrorDefnBlock = exports.ErrorDefn = exports.ImportItemsStmt = exports.ImportAllStmt = exports.ContractBlock = exports.Param = exports.TypeAliasDefn = exports.EnumDefn = exports.EnumVariantUnit = exports.EnumVariantStruct = exports.StructDefn = exports.TypeVariant = exports.TypePath = exports.InterfaceDefn = exports.ContractDefn = exports.SourceFile = exports.Ident = exports.List = exports.AST = void 0;
-exports.CWScriptASTVisitor = exports.Block = exports.FailStmt = exports.ReturnStmt = exports.EmitStmt = exports.InstantiateStmt = exports.DelegateExecStmt = exports.ExecStmt = exports.NoneLit = exports.BoolLit = exports.DecLit = exports.IntLit = exports.StringLit = exports.Literal = exports.Closure = exports.Arg = exports.TupleT = exports.ListT = exports.OptionT = exports.TypeLens = exports.Scope = exports.Grouped2Expr = exports.IdentExpr = exports.UnitVariantExpr = exports.FailExpr = exports.QueryNowExpr = exports.QueryExpr = exports.NotExpr = exports.CatchClause = exports.TryCatchElseExpr = exports.ShortTryExpr = exports.NoneCheckExpr = exports.IsExpr = exports.BinOpExpr = exports.Op = exports.FnCallExpr = exports.DColonExpr = exports.IndexExpr = exports.AsExpr = exports.DotExpr = exports.UnwrapOp = exports.GroupedExpr = void 0;
+exports.CWScriptASTVisitor = exports.VisitorError = exports.Block = exports.FailStmt = exports.ReturnStmt = exports.EmitStmt = exports.InstantiateStmt = exports.DelegateExecStmt = exports.ExecStmt = exports.DebugStmt = exports.NoneLit = exports.BoolLit = exports.DecLit = exports.IntLit = exports.StringLit = exports.Literal = exports.Closure = exports.Arg = exports.TupleT = exports.ListT = exports.OptionT = exports.TypeLens = exports.Scope = exports.Grouped2Expr = exports.IdentExpr = exports.UnitVariantExpr = exports.FailExpr = exports.QueryNowExpr = exports.QueryExpr = exports.NotExpr = exports.CatchClause = exports.TryCatchElseExpr = exports.ShortTryExpr = exports.NoneCheckExpr = exports.InExpr = exports.IsExpr = exports.OrExpr = exports.AndExpr = exports.BinOpExpr = exports.Op = exports.FnCallExpr = exports.DColonExpr = exports.IndexExpr = exports.AsExpr = exports.DotExpr = exports.UnwrapOp = exports.GroupedExpr = void 0;
 class AST {
     constructor($parent = null) {
         this.$parent = $parent;
@@ -45,13 +45,16 @@ class AST {
     get ancestors() {
         return Array.from(this.walkAncestors());
     }
+    get ancestorsAndSelf() {
+        return Array.from(this.walkAncestors(true));
+    }
     nearestAncestorWhere(predicate) {
         for (const ancestor of this.walkAncestors()) {
             if (predicate(ancestor)) {
                 return ancestor;
             }
         }
-        return null;
+        return undefined;
     }
     nearestAncestorOfType(astType) {
         return this.nearestAncestorWhere((x) => x.constructor.name === astType.name);
@@ -614,10 +617,6 @@ var Op;
     Op["MUL"] = "*";
     Op["DIV"] = "/";
     Op["MOD"] = "%";
-    Op["IN"] = "in";
-    Op["IS"] = "is";
-    Op["AND"] = "and";
-    Op["OR"] = "or";
 })(Op = exports.Op || (exports.Op = {}));
 class BinOpExpr extends AST {
     constructor(lhs, op, rhs) {
@@ -628,6 +627,22 @@ class BinOpExpr extends AST {
     }
 }
 exports.BinOpExpr = BinOpExpr;
+class AndExpr extends AST {
+    constructor(lhs, rhs) {
+        super();
+        this.lhs = lhs;
+        this.rhs = rhs;
+    }
+}
+exports.AndExpr = AndExpr;
+class OrExpr extends AST {
+    constructor(lhs, rhs) {
+        super();
+        this.lhs = lhs;
+        this.rhs = rhs;
+    }
+}
+exports.OrExpr = OrExpr;
 class IsExpr extends AST {
     constructor(negative, lhs, rhs) {
         super();
@@ -637,6 +652,14 @@ class IsExpr extends AST {
     }
 }
 exports.IsExpr = IsExpr;
+class InExpr extends AST {
+    constructor(lhs, rhs) {
+        super();
+        this.lhs = lhs;
+        this.rhs = rhs;
+    }
+}
+exports.InExpr = InExpr;
 class NoneCheckExpr extends AST {
     constructor(expr) {
         super();
@@ -741,10 +764,10 @@ class OptionT extends AST {
 }
 exports.OptionT = OptionT;
 class ListT extends AST {
-    constructor(ty, size) {
+    constructor(ty, len) {
         super();
         this.ty = ty;
-        this.size = size;
+        this.len = len;
     }
 }
 exports.ListT = ListT;
@@ -798,6 +821,13 @@ class NoneLit extends Literal {
     }
 }
 exports.NoneLit = NoneLit;
+class DebugStmt extends AST {
+    constructor(stmts) {
+        super();
+        this.stmts = stmts;
+    }
+}
+exports.DebugStmt = DebugStmt;
 class ExecStmt extends AST {
     constructor(expr, options) {
         super();
@@ -846,6 +876,13 @@ exports.FailStmt = FailStmt;
 class Block extends List {
 }
 exports.Block = Block;
+class VisitorError extends Error {
+    constructor(message, data) {
+        super(message + '\n\n' + JSON.stringify(data, null, 2));
+        this.data = data;
+    }
+}
+exports.VisitorError = VisitorError;
 class CWScriptASTVisitor {
     visit(node) {
         // @ts-ignore

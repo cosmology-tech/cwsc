@@ -1,5 +1,5 @@
-import * as AST from '@/ast';
-import { SymbolTable } from '@/util/symbol-table';
+import * as AST from './ast';
+import { SymbolTable } from './util/symbol-table';
 import {
   Type,
   Value,
@@ -54,9 +54,9 @@ import {
   EventMsg,
   EventT,
 } from './stdlib';
-import { CWScriptParser } from '@/parser';
-import { getPosition, TextView } from '@/util/position';
-import chalk, { redBright } from 'chalk';
+import { CWScriptParser } from './parser';
+import { getPosition, TextView } from './util/position';
+import chalk from 'chalk';
 import path from 'path';
 
 //region <HELPER FUNCTIONS>
@@ -336,9 +336,13 @@ export class CWScriptInterpreter extends SymbolTable {
   }
 
   runCode(sourceText: string, file: string = ':memory:') {
-    let tree = CWScriptParser.parseAndValidate(sourceText);
+    let { ast, diagnostics } = CWScriptParser.parse(sourceText);
+
+    if (!ast) {
+      return;
+    }
     this.visitor = new CWScriptInterpreterVisitor(this, sourceText, file);
-    this.visitor.visit(tree); // run
+    this.visitor.visit(ast); // run
   }
 
   callFn(fn: FnDefn, args: Arg[], scope?: SymbolTable) {
@@ -625,10 +629,10 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
 
       if (x instanceof AST.FnDefn) {
         let name = x.name!.value;
-        if (x.fallible) {
-          name += '#!';
-        }
-        this.scope.setSymbol(name, this.scope.subscope(this.visitFnDefn(x)));
+        this.scope.setSymbol(
+          x.fallible ? name + '#!' : name,
+          this.scope.subscope(this.visitFnDefn(x))
+        );
       }
 
       if (x instanceof AST.StateDefnBlock) {
@@ -791,7 +795,7 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
     let params = node.params.map((p) => this.visit<Param>(p));
     let fallible = node.fallible;
     if (fallible) {
-      name += '#!';
+      name += '!';
     }
     let retTy = node.retTy !== null ? this.visit(node.retTy) : undefined;
     return new FnDefn(name, fallible, params, retTy, node.body);
@@ -971,7 +975,7 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
     }
 
     // get iterator
-    let iter = expr.getIter();
+    let iter = (expr as any).getIter();
 
     // make new scope
     this.pushScope(this.scope.subscope());
@@ -1254,6 +1258,12 @@ export class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
     }
     const args = node.args.map((x) => this.visitArg(x));
     if (func instanceof FnDefn) {
+      if (func.fallible && !node.fallible) {
+        throw this.makeError(
+          `tried to call fallible function '${func.name}' without '!'`,
+          node.func
+        );
+      }
       return this.callFn(func, args);
     } else if (func instanceof StructDefn) {
       return func.value(args);

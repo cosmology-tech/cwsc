@@ -1,4 +1,8 @@
-import { ContractInstance, CWScriptInterpreter, Env } from '@/interpreter';
+import {
+  ContractInstance,
+  CWScriptInterpreter,
+  Env,
+} from '../../src/interpreter';
 import {
   ContractDefn,
   ContractReference,
@@ -15,8 +19,7 @@ import {
   StructDefn,
   ListT,
   FnDefn,
-} from '@/stdlib';
-import { CWScriptParser } from '@/parser';
+} from '../../src/stdlib';
 import * as fs from 'fs';
 
 const EXAMPLES_DIR = __dirname + '/../../examples';

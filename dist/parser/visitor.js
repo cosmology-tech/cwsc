@@ -23,12 +23,9 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CWScriptParser = exports.CWScriptASTBuilderVisitor = void 0;
-const CWScriptParser_1 = require("./grammar/CWScriptParser");
-const CWScriptLexer_1 = require("./grammar/CWScriptLexer");
-const antlr4ts_1 = require("antlr4ts");
+exports.CWScriptASTBuilderVisitor = void 0;
 const AbstractParseTreeVisitor_1 = require("antlr4ts/tree/AbstractParseTreeVisitor");
-const AST = __importStar(require("./ast"));
+const AST = __importStar(require("../ast"));
 class CWScriptASTBuilderVisitor extends AbstractParseTreeVisitor_1.AbstractParseTreeVisitor {
     // Stmts
     visitSourceFile(ctx) {
@@ -223,6 +220,21 @@ class CWScriptASTBuilderVisitor extends AbstractParseTreeVisitor_1.AbstractParse
         let name = this.visitIdent(ctx._name);
         return new AST.EnumVariantUnit(name).$(ctx);
     }
+    visitDebugStmt_(ctx) {
+        let stmts = [];
+        let block = ctx.block();
+        let stmt = ctx.stmt();
+        if (stmt) {
+            stmts = [this.visit(stmt)];
+        }
+        if (block) {
+            stmts = this.visitBlock(block).children;
+        }
+        return new AST.DebugStmt(stmts).$(ctx);
+    }
+    visitDebugStmt(ctx) {
+        return this.visitDebugStmt_(ctx.debugStmt_());
+    }
     visitLetStmt_(ctx) {
         let binding = this.visit(ctx.let_binding());
         let expr_ = ctx.expr();
@@ -368,7 +380,7 @@ class CWScriptASTBuilderVisitor extends AbstractParseTreeVisitor_1.AbstractParse
     }
     visitIndexExpr(ctx) {
         const obj = this.visit(ctx.expr());
-        const args = this.vlist(ctx._args);
+        const args = new AST.List(ctx._args.map((arg) => this.visitArg(arg)));
         return new AST.IndexExpr(obj, args).$(ctx);
     }
     visitDColonExpr(ctx) {
@@ -381,16 +393,21 @@ class CWScriptASTBuilderVisitor extends AbstractParseTreeVisitor_1.AbstractParse
         const ident = this.visitIdent(ctx._member);
         return new AST.DColonExpr(obj, ident).$(ctx);
     }
+    visitArg(ctx) {
+        const value = this.visit(ctx._value);
+        const name = ctx._name ? this.visitIdent(ctx._name) : null;
+        return new AST.Arg(name, value).$(ctx);
+    }
     visitFnCallExpr(ctx) {
         const func = this.visit(ctx.expr());
         const fallible = !!ctx._fallible;
-        const args = this.vlist(ctx._args);
+        const args = new AST.List(ctx._args.map((arg) => this.visitArg(arg)));
         return new AST.FnCallExpr(func, fallible, args).$(ctx);
     }
     visitTypeFnCallExpr(ctx) {
         const func = this.visit(ctx.typeExpr());
         const fallible = !!ctx._fallible;
-        const args = this.vlist(ctx._args);
+        const args = new AST.List(ctx._args.map((arg) => this.visitArg(arg)));
         return new AST.FnCallExpr(func, fallible, args).$(ctx);
     }
     visitMulExpr(ctx) {
@@ -430,7 +447,7 @@ class CWScriptASTBuilderVisitor extends AbstractParseTreeVisitor_1.AbstractParse
     visitInExpr(ctx) {
         const lhs = this.visit(ctx.expr()[0]);
         const rhs = this.visit(ctx._rhs);
-        return new AST.BinOpExpr(lhs, AST.Op.IN, rhs).$(ctx);
+        return new AST.InExpr(lhs, rhs).$(ctx);
     }
     visitShortTryExpr(ctx) {
         let lhs = this.visit(ctx.expr()[0]);
@@ -459,12 +476,12 @@ class CWScriptASTBuilderVisitor extends AbstractParseTreeVisitor_1.AbstractParse
     visitAndExpr(ctx) {
         const lhs = this.visit(ctx.expr()[0]);
         const rhs = this.visit(ctx._rhs);
-        return new AST.BinOpExpr(lhs, AST.Op.AND, rhs).$(ctx);
+        return new AST.AndExpr(lhs, rhs).$(ctx);
     }
     visitOrExpr(ctx) {
         const lhs = this.visit(ctx.expr()[0]);
         const rhs = this.visit(ctx._rhs);
-        return new AST.BinOpExpr(lhs, AST.Op.OR, rhs).$(ctx);
+        return new AST.OrExpr(lhs, rhs).$(ctx);
     }
     visitQueryNowExpr(ctx) {
         const obj = this.visit(ctx.expr());
@@ -494,12 +511,17 @@ class CWScriptASTBuilderVisitor extends AbstractParseTreeVisitor_1.AbstractParse
     visitClosureParams(ctx) {
         return this.vlist(ctx._params).$(ctx);
     }
+    visitMemberVal(ctx) {
+        let name = this.visitIdent(ctx._name);
+        let value = ctx._value ? this.visit(ctx._value) : null;
+        return new AST.MemberVal(name, value).$(ctx);
+    }
     visitStructExpr(ctx) {
         let ty = ctx.typeExpr()
             ? this.visit(ctx.typeExpr())
             : null;
-        let memberVals = this.vlist(ctx._members);
-        return new AST.StructExpr(ty, memberVals).$(ctx);
+        let memberVals = ctx._members.map((x) => this.visitMemberVal(x));
+        return new AST.StructExpr(ty, new AST.List(memberVals)).$(ctx);
     }
     visitUnitVariantExpr(ctx) {
         let ty = this.visitTypeVariant(ctx.typeVariant());
@@ -531,14 +553,4 @@ class CWScriptASTBuilderVisitor extends AbstractParseTreeVisitor_1.AbstractParse
     }
 }
 exports.CWScriptASTBuilderVisitor = CWScriptASTBuilderVisitor;
-class CWScriptParser {
-    static parse(sourceInput) {
-        let antlrLexer = new CWScriptLexer_1.CWScriptLexer(antlr4ts_1.CharStreams.fromString(sourceInput));
-        let antlrParser = new CWScriptParser_1.CWScriptParser(new antlr4ts_1.CommonTokenStream(antlrLexer));
-        let tree = antlrParser.sourceFile();
-        let visitor = new CWScriptASTBuilderVisitor();
-        return visitor.visitSourceFile(tree);
-    }
-}
-exports.CWScriptParser = CWScriptParser;
-//# sourceMappingURL=parser.js.map
+//# sourceMappingURL=visitor.js.map

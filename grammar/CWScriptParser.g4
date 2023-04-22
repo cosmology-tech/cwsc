@@ -132,7 +132,8 @@ typeDefn: structDefn | enumDefn | typeAliasDefn;
 
 structDefn:
 	STRUCT (name=ident)? LPAREN ((members+=param) (COMMA (members+=param))*)? RPAREN
-	| STRUCT (name=ident)? LBRACE ((members+=param) (COMMA (members+=param))* COMMA?) RBRACE;
+    | STRUCT (name=ident)? LBRACE ((members+=param) (COMMA (members+=param))* COMMA?) RBRACE;
+
 typeAliasDefn: TYPE (name = ident) EQ (value = typeExpr);
 
 // Functions

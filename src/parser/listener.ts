@@ -1,35 +1,103 @@
-import { CWScriptParserListener } from '@/grammar/CWScriptParserListener';
-import * as P from '@/grammar/CWScriptParser';
+import { CWScriptParserListener } from '../grammar/CWScriptParserListener';
+import * as P from '../grammar/CWScriptParser';
 
-import { SymbolTable } from '@/util/symbol-table';
+import { SymbolTable } from '../util/symbol-table';
 import { ParserRuleContext } from 'antlr4ts';
 import { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver';
+import { getPosition, TextView } from '../util/position';
+import { SourceFileContext } from '../grammar/CWScriptParser';
+import { ParseTreeWalker } from 'antlr4ts/tree/ParseTreeWalker';
 
-export class CWScriptScopeListener implements CWScriptParserListener {
+export class ValidationStage implements CWScriptParserListener {
   protected scopes: SymbolTable[] = [];
   protected depth: {
     [key: string]: number;
   } = {};
 
-  enterEveryRule(ctx: ParserRuleContext) {
-    let name = ctx.constructor.name;
-    if (this.depth[name] === undefined) {
-      this.depth[name] = 0;
-    } else {
-      this.depth[name]++;
+  constructor(public validator: CWScriptParseTreeValidator) {}
+
+  enterEveryRule(ctx: ParserRuleContext) {}
+
+  exitEveryRule(ctx: ParserRuleContext) {}
+
+  public isInside(ruleName: string): boolean {
+    return this.validator.isInside(ruleName);
+  }
+
+  public get scope(): SymbolTable {
+    return this.validator.scope;
+  }
+
+  public pushScope(scope?: SymbolTable) {
+    this.validator.pushScope(scope);
+  }
+
+  public popScope() {
+    return this.validator.popScope();
+  }
+}
+
+export class CheckSymbolsDeclaredBeforeUse extends ValidationStage {
+  enterIdentExpr(ctx: P.IdentExprContext) {
+    if (!this.scope.hasSymbol(ctx.ident().text)) {
+      this.validator.addError(
+        ctx,
+        'Symbol `' + ctx.text + '` used before definition.'
+      );
     }
   }
 
-  exitEveryRule(ctx: ParserRuleContext) {
-    let name = ctx.constructor.name;
-    this.depth[name]--;
+  // definitions below
+  enterIdentBinding_(ctx: P.IdentBinding_Context) {
+    this.scope.setSymbol(ctx._name.text, '');
   }
 
-  public isInside(ctxC: new (...args: any[]) => ParserRuleContext): boolean {
-    return this.depth[ctxC.constructor.name] > 0;
+  enterImportItemsStmt(ctx: P.ImportItemsStmtContext) {
+    ctx._items.forEach((sym) => {
+      this.scope.setSymbol(sym.text, '');
+    });
   }
 
-  public get currentScope(): SymbolTable {
+  enterParam(ctx: P.ParamContext) {
+    this.scope.setSymbol(ctx._name.text, '');
+  }
+
+  enterInstantiateDefn(ctx: P.InstantiateDefnContext) {
+    this.scope.setSymbol('#instantiate', '');
+  }
+
+  enterFnDefn(ctx: P.FnDefnContext) {
+    if (ctx._name) {
+      this.scope.setSymbol(ctx._name.text, '');
+    }
+  }
+
+  enterStructDefn(ctx: P.StructDefnContext) {
+    if (ctx._name) {
+      this.scope.setSymbol(ctx._name.text, '');
+    }
+  }
+
+  enterEnumDefn(ctx: P.EnumDefnContext) {
+    this.scope.setSymbol(ctx._name.text, '');
+  }
+}
+
+export class CWScriptParseTreeValidator implements CWScriptParserListener {
+  public started: boolean = false;
+  public completed: boolean = false;
+  public diagnostics: Diagnostic[] = [];
+  public stages: ValidationStage[] = [];
+  protected scopes: SymbolTable[] = [];
+  protected depth: {
+    [key: string]: number;
+  } = {};
+
+  public isInside(ruleName: string): boolean {
+    return this.depth[ruleName] > 0;
+  }
+
+  public get scope(): SymbolTable {
     return this.scopes[this.scopes.length - 1];
   }
 
@@ -44,61 +112,88 @@ export class CWScriptScopeListener implements CWScriptParserListener {
   public popScope() {
     return this.scopes.pop();
   }
-}
 
-export abstract class CWScriptParseTreeValidation {
-  abstract NAME: string;
+  constructor(
+    public tree: SourceFileContext,
+    public sourceText: TextView,
+    stages: (new (...a: any[]) => ValidationStage)[] = []
+  ) {
+    this.scopes.push(new SymbolTable());
+    for (let stage of stages) {
+      this.stages.push(new stage(this));
+    }
+  }
 
-  public started: boolean = false;
-  public completed: boolean = false;
-  public diagnostics: Diagnostic[] = [];
+  public hasErrors(): boolean {
+    return this.diagnostics.some(
+      (d) => d.severity === DiagnosticSeverity.Error
+    );
+  }
 
-  constructor(public sourceText: string) {}
-
-  public validate(tree: P.SourceFileContext) {
+  public validate() {
     this.started = true;
-    this.run(tree);
+    ParseTreeWalker.DEFAULT.walk(this, this.tree);
     this.completed = true;
   }
 
-  abstract run(tree: P.SourceFileContext): void;
+  enterEveryRule(ctx: ParserRuleContext) {
+    let ruleName = ctx.constructor.name.slice(0, -1 * 'Context'.length);
+    if (this.depth[ruleName] === undefined) {
+      this.depth[ruleName] = 0;
+    } else {
+      this.depth[ruleName]++;
+    }
+    for (let stage of this.stages) {
+      stage.enterEveryRule(ctx);
+      let fnName = `enter${ruleName}`;
+      if (fnName in stage) {
+        (stage as any)[fnName](ctx);
+      }
+    }
+  }
 
-  protected addError(ctx: ParserRuleContext, message: string) {
+  exitEveryRule(ctx: ParserRuleContext) {
+    let ruleName = ctx.constructor.name.slice(0, -1 * 'Context'.length);
+    for (let stage of this.stages) {
+      stage.exitEveryRule(ctx);
+      let fnName = `exit${ruleName}`;
+      if (fnName in stage) {
+        (stage as any)[fnName](ctx);
+      }
+    }
+    this.depth[ruleName]--;
+  }
+
+  public addError(ctx: ParserRuleContext, message: string) {
     this.addDiagnostic(ctx, DiagnosticSeverity.Error, message);
   }
 
-  protected addWarning(ctx: ParserRuleContext, message: string) {
+  public addWarning(ctx: ParserRuleContext, message: string) {
     this.addDiagnostic(ctx, DiagnosticSeverity.Warning, message);
   }
 
-  protected addInfo(ctx: ParserRuleContext, message: string) {
+  public addInfo(ctx: ParserRuleContext, message: string) {
     this.addDiagnostic(ctx, DiagnosticSeverity.Information, message);
   }
 
-  protected addHint(ctx: ParserRuleContext, message: string) {
+  public addHint(ctx: ParserRuleContext, message: string) {
     this.addDiagnostic(ctx, DiagnosticSeverity.Hint, message);
   }
 
-  protected addDiagnostic(
+  public addDiagnostic(
     ctx: ParserRuleContext,
     severity: DiagnosticSeverity,
     message: string
   ) {
-    if (ctx.stop) {
-      this.diagnostics.push({
-        severity: severity,
-        message: message,
-        range: {
-          start: {
-            line: ctx.start.line - 1,
-            character: ctx.start.charPositionInLine,
-          },
-          end: {
-            line: ctx.stop.line - 1,
-            character: ctx.stop.charPositionInLine + ctx.stop.text!.length,
-          },
-        },
-      });
+    let pos = getPosition(ctx);
+    let range = this.sourceText.range(pos.start, pos.end);
+    if (!range) {
+      throw new Error('Unable to get range for diagnostic.');
     }
+    this.diagnostics.push({
+      severity,
+      message,
+      range,
+    });
   }
 }
