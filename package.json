@@ -104,7 +104,7 @@
     "antlr4ts": "^0.5.0-alpha.4",
     "assert": "^2.0.0",
     "buffer": "^6.0.3",
-    "chalk": "^5.2.0",
+    "chalk": "4.1.2",
     "commander": "^9.0.0",
     "ejs": "^3.1.6",
     "fs-extra": "^11.1.1",

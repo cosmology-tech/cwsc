@@ -2,6 +2,10 @@ import { Command, Args, Flags } from '@oclif/core';
 import { BaseCommand, FlagsT, ArgsT } from '../BaseCommand';
 import { CWScriptParser } from '../../parser';
 import fs from 'fs';
+import path from 'path';
+import { DiagnosticSeverity } from 'vscode-languageserver';
+import { TextView } from '../../util/position';
+import { errorReportWithCodeSnippet } from '../../util/diagnostics';
 
 export default class ParseCommand extends BaseCommand<typeof ParseCommand> {
   static description = 'Parse a CWScript source file into AST.';
@@ -27,26 +31,38 @@ export default class ParseCommand extends BaseCommand<typeof ParseCommand> {
 
   static args = {
     file: Args.file({
-      description:
-        'File to parse into AST. If not provided, will read from <STDIN>.',
-      required: false,
+      description: 'File to parse into AST.',
+      required: true,
+      ignoreStdin: true,
       exists: true,
     }),
   };
 
   public async run() {
     const { args, flags } = await this.parse(ParseCommand);
-    if (args.file) {
-      this.debug(`Parsing ${args.file} into ${flags.format}...`);
-      let sourceInput = fs.readFileSync(args.file, 'utf8');
-      let res = CWScriptParser.parse(sourceInput);
+    if (!args.file) {
+      this.error('No file provided to parse.');
+    }
 
-      if (!res.ast) {
-        this.error('Failed to parse the source file.');
+    this.debug(`Parsing ${args.file} into ${flags.format}...`);
+    let sourceInput = fs.readFileSync(args.file, 'utf8');
+    let sourceText = new TextView(sourceInput);
+    let res = CWScriptParser.parse(sourceInput);
+
+    if (!res.ast) {
+      for (let err of res.diagnostics.filter(
+        (x) => x.severity === DiagnosticSeverity.Error
+      )) {
+        this.log(
+          errorReportWithCodeSnippet(path.resolve(args.file), sourceText, err)
+        );
       }
-      if (flags.out) {
-        fs.writeFileSync(flags.out, res);
-      }
+      this.error('No AST produced by parser.');
+    }
+    if (flags.out) {
+      fs.writeFileSync(flags.out!, JSON.stringify(res.ast!.toJSON()));
+    } else {
+      console.log(res.ast!.toJSON());
     }
   }
 }

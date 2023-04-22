@@ -14,15 +14,16 @@ export declare abstract class BaseCommand<T extends typeof Command> extends Comm
     static baseFlags: {
         verbose: Interfaces.BooleanFlag<boolean>;
         silent: Interfaces.BooleanFlag<boolean>;
-        logs: Interfaces.OptionFlag<string[], import("@oclif/core/lib/interfaces/parser").CustomOptions>;
+        'show-hints': Interfaces.BooleanFlag<boolean>;
+        'show-warnings': Interfaces.BooleanFlag<boolean>;
+        logs: Interfaces.OptionFlag<string | undefined, import("@oclif/core/lib/interfaces/parser").CustomOptions>;
         'log-file': Interfaces.OptionFlag<string | undefined, import("@oclif/core/lib/interfaces/parser").CustomOptions>;
         'project-dir': Interfaces.OptionFlag<string | undefined, import("@oclif/core/lib/interfaces/parser").CustomOptions>;
         cwsconfig: Interfaces.OptionFlag<string | undefined, import("@oclif/core/lib/interfaces/parser").CustomOptions>;
-        X: Interfaces.OptionFlag<ConfigKV | undefined, import("@oclif/core/lib/interfaces/parser").CustomOptions>;
     };
     protected catch(err: Error & {
         exitCode?: number;
     }): Promise<any>;
     protected finally(_: Error | undefined): Promise<any>;
-    abstract run(): Promise<FlagsT<T>>;
+    abstract run(): Promise<any>;
 }

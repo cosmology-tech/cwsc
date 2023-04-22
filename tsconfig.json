@@ -34,11 +34,6 @@
     "strictFunctionTypes": true,
     "strictNullChecks": true,
     "strictPropertyInitialization": true,
-    "target": "es2016",
-    "paths": {
-      "*": [
-        "src/*"
-      ]
-    }
+    "target": "es2017"
   }
 }

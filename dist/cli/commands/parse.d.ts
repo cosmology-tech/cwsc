@@ -1,4 +1,4 @@
-import { BaseCommand, FlagsT } from '../BaseCommand';
+import { BaseCommand } from '../BaseCommand';
 export default class ParseCommand extends BaseCommand<typeof ParseCommand> {
     static description: string;
     static examples: string[];
@@ -11,5 +11,5 @@ export default class ParseCommand extends BaseCommand<typeof ParseCommand> {
             exists?: boolean | undefined;
         }>;
     };
-    run(): Promise<FlagsT<typeof ParseCommand>>;
+    run(): Promise<void>;
 }

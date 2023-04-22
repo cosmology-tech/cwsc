@@ -57,6 +57,7 @@ import {
 import { CWScriptParser } from './parser';
 import { getPosition, TextView } from './util/position';
 import chalk from 'chalk';
+
 import path from 'path';
 
 //region <HELPER FUNCTIONS>

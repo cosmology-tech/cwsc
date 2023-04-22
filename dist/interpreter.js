@@ -32,8 +32,11 @@ const symbol_table_1 = require("./util/symbol-table");
 const stdlib_1 = require("./stdlib");
 const parser_1 = require("./parser");
 const position_1 = require("./util/position");
-const chalk_1 = __importDefault(require("chalk"));
 const path_1 = __importDefault(require("path"));
+let chalk;
+(async () => {
+    chalk = await Promise.resolve().then(() => __importStar(require('chalk')));
+})();
 //region <HELPER FUNCTIONS>
 function arg(val, name) {
     return new stdlib_1.Arg(val, name);
@@ -355,10 +358,10 @@ class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
         let lineNoWidth = 5;
         let gutterWidth = lineNoWidth + 2;
         let makeLine = (line, text) => {
-            return chalk_1.default.dim(`${line.toString().padStart(lineNoWidth, ' ')}| ${text}\n`);
+            return chalk.dim(`${line.toString().padStart(lineNoWidth, ' ')}| ${text}\n`);
         };
         let makeErrorLine = (line, text) => {
-            return `${chalk_1.default.redBright(chalk_1.default.bold(line.toString().padStart(lineNoWidth, ' ')) + '|')} ${text}\n`;
+            return `${chalk.redBright(chalk.bold(line.toString().padStart(lineNoWidth, ' ')) + '|')} ${text}\n`;
         };
         this.tv.surroundingLinesOfRange(range, 5, true).forEach((x) => {
             // if this is the starting line, make a pointer
@@ -367,11 +370,11 @@ class CWScriptInterpreterVisitor extends AST.CWScriptASTVisitor {
                 // only highlight the part of the line that is in the range
                 let start = x.line === range.start.line ? range.start.character - 1 : 0;
                 let end = x.line === range.end.line ? range.end.character - 1 : x.text.length;
-                message += makeErrorLine(x.line, chalk_1.default.dim(x.text.slice(0, start)) +
-                    chalk_1.default.bold(chalk_1.default.redBright(x.text.slice(start, end))) +
-                    chalk_1.default.dim(x.text.slice(end)));
+                message += makeErrorLine(x.line, chalk.dim(x.text.slice(0, start)) +
+                    chalk.bold(chalk.redBright(x.text.slice(start, end))) +
+                    chalk.dim(x.text.slice(end)));
                 if (x.line === range.end.line) {
-                    message += chalk_1.default.bold(chalk_1.default.yellow(' '.repeat(gutterWidth + range.end.character - 2) +
+                    message += chalk.bold(chalk.yellow(' '.repeat(gutterWidth + range.end.character - 2) +
                         '^ ' +
                         originalMsg +
                         '\n'));
