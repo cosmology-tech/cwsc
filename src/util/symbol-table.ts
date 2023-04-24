@@ -9,6 +9,16 @@ export class SymbolTable {
     this.symbols = symbols ?? {};
   }
 
+  getTrail(): SymbolTable[] {
+    let res: SymbolTable[] = [this];
+    let cur = this.parent;
+    while (cur) {
+      res.push(cur);
+      cur = cur.parent;
+    }
+    return res.reverse();
+  }
+
   getSymbol<T = any>(name: string): T {
     if (name in this.symbols) {
       return this.symbols[name];
@@ -25,6 +35,15 @@ export class SymbolTable {
     throw new Error(`symbol ${name} not found`);
   }
 
+  hasSymbol(name: string): boolean {
+    let res = name in this.symbols || name + '#!' in this.symbols;
+    if (res) {
+      return true;
+    } else {
+      return this.parent ? this.parent.hasSymbol(name) : false;
+    }
+  }
+
   getOwnSymbol<T = any>(name: string): T {
     if (name in this.symbols) {
       return this.symbols[name];
@@ -39,26 +58,6 @@ export class SymbolTable {
 
   setSymbol(name: string, value: any) {
     this.symbols[name] = value;
-  }
-
-  firstTableWithSymbol(name: string): SymbolTable | undefined {
-    if (name in this.symbols) {
-      return this;
-    }
-
-    if (this.parent) {
-      return this.parent.firstTableWithSymbol(name);
-    }
-
-    return undefined;
-  }
-
-  hasSymbol(name: string): boolean {
-    return this.firstTableWithSymbol(name) !== undefined;
-  }
-
-  hasOwnSymbol(name: string): boolean {
-    return name in this.symbols;
   }
 
   subscope<T extends SymbolTable = SymbolTable>(x?: T): T {

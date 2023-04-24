@@ -55,7 +55,7 @@ import {
   EventT,
 } from './stdlib';
 import { CWSParser } from './parser';
-import { getPosition, TextView } from './util/position';
+import { getIx, TextView } from './util/position';
 import chalk from 'chalk';
 
 import path from 'path';
@@ -337,19 +337,9 @@ export class CWSInterpreter extends SymbolTable {
   }
 
   runCode(sourceText: string, file: string = ':memory:') {
-    let data = new CWSParser(sourceText).parse();
-
-    if (data.isOk()) {
-      let ast = data.unwrap().data;
-      console.log(ast);
-      this.visitor = new CWSInterpreterVisitor(this, sourceText, file);
-      this.visitor.visit(ast); // run
-    } else {
-      data.diagnostics.forEach((d) => {
-        console.error(d);
-      });
-      throw new Error(`Error parsing source code: ${file}`);
-    }
+    let ast = new CWSParser(sourceText, file).parse();
+    this.visitor = new CWSInterpreterVisitor(this, sourceText, file);
+    this.visitor.visit(ast); // run
   }
 
   callFn(fn: FnDefn, args: Arg[], scope?: SymbolTable) {
@@ -373,16 +363,6 @@ export class Return {
   constructor(public value: Value) {}
 }
 
-export class DebugCall extends FnDefn {
-  constructor() {
-    super('debug', true, [], NoneT);
-  }
-
-  call(interpreter: CWSInterpreter, node?: AST.AST) {
-    debugger;
-  }
-}
-
 export class InterpreterError extends Error {
   constructor(message: string) {
     super(message);
@@ -393,9 +373,24 @@ export class CWSInterpreterVisitor extends AST.CWSASTVisitor {
   public ctx: any;
   public tv: TextView;
   scopes: SymbolTable[];
+  private debugMode: boolean = false;
 
   get scope(): SymbolTable {
     return this.scopes[this.scopes.length - 1];
+  }
+
+  firstTableWithSymbol(name: string): SymbolTable | undefined {
+    for (let i = this.scopes.length - 1; i >= 0; i--) {
+      let scope = this.scopes[i];
+      if (name in scope.symbols) {
+        return scope;
+      }
+    }
+    return undefined;
+  }
+
+  hasSymbol(name: string): boolean {
+    return this.firstTableWithSymbol(name) !== undefined;
   }
 
   pushScope(scope: SymbolTable) {
@@ -404,6 +399,20 @@ export class CWSInterpreterVisitor extends AST.CWSASTVisitor {
 
   popScope() {
     this.scopes.pop();
+  }
+
+  getSymbol<T = any>(name: string): T {
+    for (let i = this.scopes.length - 1; i >= 0; i--) {
+      let scope = this.scopes[i];
+      if (scope.hasSymbol(name)) {
+        return scope.getSymbol(name);
+      }
+    }
+    throw new InterpreterError(`Symbol ${name} not found`);
+  }
+
+  setSymbol(name: string, value: any) {
+    this.scope.setSymbol(name, value);
   }
 
   public file: string;
@@ -427,7 +436,7 @@ export class CWSInterpreterVisitor extends AST.CWSASTVisitor {
 
     let originalMsg = message;
 
-    let pos = getPosition(node.$ctx);
+    let pos = getIx(node.$ctx);
     // get range of node
     let range = this.tv.range(pos.start, pos.end, true)!;
     message = `Error occured in node: '${node.constructor.name}'`;
@@ -521,18 +530,32 @@ export class CWSInterpreterVisitor extends AST.CWSASTVisitor {
     return new InterpreterError(message);
   }
 
-  visit<T = any>(node: AST.AST): T {
-    try {
-      return super.visit(node);
-    } catch (e) {
-      if (e instanceof InterpreterError) {
-        throw e;
-      } else {
-        throw this.makeError((e as any).message, node);
-      }
-    }
-  }
-
+  // visit<T = any>(node: AST.AST): T {
+  //   try {
+  //     if (this.debugMode) {
+  //       console.log(
+  //         `Scope: ${this.scope
+  //           .getTrail()
+  //           .map((x) => x.constructor.name)
+  //           .join(' > ')}`
+  //       );
+  //       console.table(this.scope.symbols);
+  //       debugger;
+  //     }
+  //     return super.visit(node);
+  //   } catch (e) {
+  //     if (
+  //       e instanceof InterpreterError ||
+  //       e instanceof Return ||
+  //       e instanceof Failure
+  //     ) {
+  //       throw e;
+  //     } else {
+  //       throw this.makeError((e as any).message, node);
+  //     }
+  //   }
+  // }
+  //
   //region <PERVASIVES>
 
   visitSourceFile(node: AST.SourceFile) {
@@ -617,7 +640,7 @@ export class CWSInterpreterVisitor extends AST.CWSASTVisitor {
     });
 
     this.popScope();
-    this.interpreter.setSymbol(name, interfaceDefn);
+    this.setSymbol(name, interfaceDefn);
   }
 
   visitContractDefn(node: AST.ContractDefn) {
@@ -627,16 +650,16 @@ export class CWSInterpreterVisitor extends AST.CWSASTVisitor {
 
     node.body.children.forEach((x) => {
       if (x instanceof AST.StructDefn) {
-        this.scope.setSymbol(x.name!.value, this.visit<StructDefn>(x));
+        this.setSymbol(x.name!.value, this.visit<StructDefn>(x));
       }
 
       if (x instanceof AST.EnumDefn) {
-        this.scope.setSymbol(x.name.value, this.visit<EnumDefn>(x));
+        this.setSymbol(x.name.value, this.visit<EnumDefn>(x));
       }
 
       if (x instanceof AST.FnDefn) {
         let name = x.name!.value;
-        this.scope.setSymbol(
+        this.setSymbol(
           x.fallible ? name + '#!' : name,
           this.scope.subscope(this.visitFnDefn(x))
         );
@@ -651,7 +674,7 @@ export class CWSInterpreterVisitor extends AST.CWSASTVisitor {
               ? this.visit<Value>(itemDefn.default_!)
               : ty.defaultValue();
           let item = new StateItem(key, ty, default_);
-          this.scope.setSymbol('#state#' + key, item);
+          this.setSymbol('#state#' + key, item);
         });
         x.descendantsOfType(AST.StateDefnMap).forEach((mapDefn) => {
           let prefix = mapDefn.name.value;
@@ -663,16 +686,16 @@ export class CWSInterpreterVisitor extends AST.CWSASTVisitor {
               : ty.defaultValue();
           let map = new StateMap(prefix, mapKeys, ty, default_);
 
-          this.scope.setSymbol('#state#' + mapDefn.name.value, map);
+          this.setSymbol('#state#' + mapDefn.name.value, map);
         });
       }
 
       if (x instanceof AST.ErrorDefn) {
-        this.scope.setSymbol('#error#' + x.name!.value, this.visitErrorDefn(x));
+        this.setSymbol('#error#' + x.name!.value, this.visitErrorDefn(x));
       }
 
       if (x instanceof AST.EventDefn) {
-        this.scope.setSymbol('#event#' + x.name!.value, this.visitEventDefn(x));
+        this.setSymbol('#event#' + x.name!.value, this.visitEventDefn(x));
       }
 
       if (x instanceof AST.InstantiateDefn) {
@@ -688,7 +711,7 @@ export class CWSInterpreterVisitor extends AST.CWSASTVisitor {
       }
     });
     this.popScope();
-    this.scope.setSymbol(name, contractDefn);
+    this.setSymbol(name, contractDefn);
   }
 
   //endregion <TOP-LEVEL STATEMENTS>
@@ -698,7 +721,7 @@ export class CWSInterpreterVisitor extends AST.CWSASTVisitor {
   visitTypePath(node: AST.TypePath): Type {
     let segments = node.segments.map((x) => x.value);
     // start at the first segment, and keep going until we resolve the final segment
-    let curr = this.scope.getSymbol(segments[0]);
+    let curr = this.getSymbol(segments[0]);
     for (let i = 1; i < segments.length; i++) {
       curr = curr.getSymbol(segments[i]);
     }
@@ -820,8 +843,8 @@ export class CWSInterpreterVisitor extends AST.CWSASTVisitor {
     let instantiateImpl = this.scope.subscope(
       new FnDefn('#instantiate', false, params, undefined, node.body)
     );
-    this.scope.setSymbol('#instantiate', instantiateMsg);
-    this.scope.setSymbol('#instantiate#impl', instantiateImpl);
+    this.setSymbol('#instantiate', instantiateMsg);
+    this.setSymbol('#instantiate#impl', instantiateImpl);
   }
 
   visitExecDefn(node: AST.ExecDefn) {
@@ -833,8 +856,8 @@ export class CWSInterpreterVisitor extends AST.CWSASTVisitor {
     let execImpl = this.scope.subscope(
       new FnDefn(execMsg.name, false, params, undefined, node.body)
     );
-    this.scope.setSymbol(`#exec#${node.name.value}`, execImpl);
-    this.scope.setSymbol(`#exec${node.name.value}#impl`, execImpl);
+    this.setSymbol(`#exec#${node.name.value}`, execImpl);
+    this.setSymbol(`#exec${node.name.value}#impl`, execImpl);
   }
 
   visitQueryDefn(node: AST.QueryDefn) {
@@ -854,8 +877,8 @@ export class CWSInterpreterVisitor extends AST.CWSASTVisitor {
       )
     );
 
-    this.scope.setSymbol(`#query#${node.name.value}`, queryImpl);
-    this.scope.setSymbol(`#query${node.name.value}#impl`, queryImpl);
+    this.setSymbol(`#query#${node.name.value}`, queryImpl);
+    this.setSymbol(`#query${node.name.value}#impl`, queryImpl);
   }
 
   //endregion <CONTRACT ITEMS>
@@ -864,29 +887,31 @@ export class CWSInterpreterVisitor extends AST.CWSASTVisitor {
   visitBlock(node: AST.Block) {
     let res = None;
     for (let stmt of node.children) {
-      res = this.visit(stmt);
-      if (res instanceof Return) {
-        return res.value;
-      } else if (res instanceof Failure) {
-        return res;
-      }
+      res = this.visit(stmt) || None;
     }
     return res;
   }
 
   visitDebugStmt(node: AST.DebugStmt) {
-    debugger;
+    this.debugMode = true;
     for (let stmt of node.stmts) {
-      let a = this.visit(stmt);
-      console.log(a);
+      let range = this.tv.rangeOfNode(stmt.$ctx!)!;
+      console.log(
+        `debug(): ${range.start.line}:${range.start.character} - ${range.end.line}:${range.end.character}`
+      );
+      this.visit(stmt);
     }
+    this.debugMode = false;
   }
 
   visitLetStmt(node: AST.LetStmt) {
     if (node.expr !== null) {
       let val = this.visit<Value>(node.expr);
       if (node.binding instanceof AST.IdentBinding) {
-        this.scope.setSymbol(node.binding.name.value, val);
+        if (node.binding.name.value === 'total_supply') {
+          debugger;
+        }
+        this.setSymbol(node.binding.name.value, val);
       } else if (node.binding instanceof AST.TupleBinding) {
         if (!val.isOfTypeClass(TupleT) && !val.isOfTypeClass(ListT)) {
           throw this.makeError(
@@ -896,19 +921,19 @@ export class CWSInterpreterVisitor extends AST.CWSASTVisitor {
         }
         node.binding.bindings.forEach((symbol, i) => {
           let name = symbol.name.value;
-          this.scope.setSymbol(
-            name,
-            (val as unknown as Indexable).getIndex(idx(i))
-          );
+          this.setSymbol(name, (val as unknown as Indexable).getIndex(idx(i)));
         });
       } else {
         // struct binding
-        if (val.isOfTypeClass(StructDefn)) {
-          throw this.makeError(`tried to unpack ${val} as struct`, node.expr);
+        if (!val.isOfTypeClass(StructDefn)) {
+          throw this.makeError(
+            `tried to unpack ${val.ty} as struct`,
+            node.expr
+          );
         }
         node.binding.bindings.forEach((symbol) => {
           let name = symbol.name.value;
-          this.scope.setSymbol(name, val.getSymbol(name));
+          this.setSymbol(name, val.getSymbol(name));
         });
       }
     } else {
@@ -922,19 +947,19 @@ export class CWSInterpreterVisitor extends AST.CWSASTVisitor {
   visitAssignStmt(node: AST.AssignStmt) {
     let rhs = this.visit<Value>(node.rhs);
     if (node.lhs instanceof AST.IdentLHS) {
-      this.scope.setSymbol(node.lhs.symbol.value, rhs);
+      this.setSymbol(node.lhs.symbol.value, rhs);
     } else if (node.lhs instanceof AST.DotLHS) {
       let obj = this.visit<SymbolTable>(node.lhs.obj);
       let member = node.lhs.member.value;
-      let tbl = obj.firstTableWithSymbol(member);
-      if (tbl === undefined) {
-        throw this.makeError(
-          `tried to assign to non-existent member '${member}' of ${obj}`,
-          node.lhs.member
-        );
-      } else {
-        tbl.setSymbol(member, rhs);
-      }
+      obj.setSymbol(member, rhs);
+      // if (tbl === undefined) {
+      //   throw this.makeError(
+      //     `tried to assign to non-existent member '${member}' of ${obj}`,
+      //     node.lhs.member
+      //   );
+      // } else {
+      //   tbl.setSymbol(member, rhs);
+      // }
     } else {
       // index assignment
       let obj = this.visit<Value>(node.lhs.obj);
@@ -991,7 +1016,7 @@ export class CWSInterpreterVisitor extends AST.CWSASTVisitor {
     if (node.binding instanceof AST.IdentBinding) {
       let name = node.binding.name.value;
       for (let val = iter.next(); val !== undefined; val = iter.next()) {
-        this.scope.setSymbol(name, val);
+        this.setSymbol(name, val);
         this.visit(node.body);
       }
     } else if (node.binding instanceof AST.TupleBinding) {
@@ -1005,7 +1030,7 @@ export class CWSInterpreterVisitor extends AST.CWSASTVisitor {
         }
 
         node.binding.bindings.forEach((symbol, i) => {
-          this.scope.setSymbol(
+          this.setSymbol(
             symbol.name.value,
             (val as unknown as Indexable).getIndex(idx(i))
           );
@@ -1016,13 +1041,13 @@ export class CWSInterpreterVisitor extends AST.CWSASTVisitor {
       for (let val = iter.next(); val !== undefined; val = iter.next()) {
         if (!val.isOfTypeClass(StructDefn)) {
           throw this.makeError(
-            `tried to unpack ${val} as struct`,
+            `tried to unpack ${val.ty.name} as struct`,
             node.binding
           );
         }
         node.binding.bindings.forEach((symbol) => {
           let name = symbol.name.value;
-          this.scope.setSymbol(
+          this.setSymbol(
             name,
             (val as unknown as StructInstance).getSymbol(name)
           );
@@ -1047,7 +1072,7 @@ export class CWSInterpreterVisitor extends AST.CWSASTVisitor {
     } else {
       // TODO: make it more general
       let name = node.expr.func.segments.toArray()[0].value;
-      let ty = this.scope.getSymbol('#event#' + name);
+      let ty = this.getSymbol('#event#' + name);
       if (!ty.isSubOf(EventT)) {
         throw this.makeError(
           `emit statement must be a call to an event type`,
@@ -1056,7 +1081,7 @@ export class CWSInterpreterVisitor extends AST.CWSASTVisitor {
       }
       let args = node.expr.args.map((x) => this.visitArg(x));
       let val = ty.value(args);
-      let res = this.scope.getSymbol<StructInstance>('$res');
+      let res = this.getSymbol<StructInstance>('$res');
       let events = res.getSymbol<ListInstance<EventMsg>>('events');
       this.callMethod(events, 'push', [val]);
     }
@@ -1072,7 +1097,7 @@ export class CWSInterpreterVisitor extends AST.CWSASTVisitor {
         node.expr
       );
     } else {
-      let res = this.scope.getSymbol<StructInstance>('$res');
+      let res = this.getSymbol<StructInstance>('$res');
       let messages = res.getSymbol<ListInstance<typeof ExecMsgT>>('msgs');
       this.callMethod(messages, 'push', [val]);
     }
@@ -1090,9 +1115,7 @@ export class CWSInterpreterVisitor extends AST.CWSASTVisitor {
         node.expr
       );
     } else {
-      let fn = this.scope.getSymbol<FnDefn>(
-        'exec#' + node.expr.func.value + '#impl'
-      );
+      let fn = this.getSymbol<FnDefn>('exec#' + node.expr.func.value + '#impl');
       let args = node.expr.args.map((x) => new Arg(this.visit(x)));
       return this.callFn(fn, args);
     }
@@ -1120,7 +1143,7 @@ export class CWSInterpreterVisitor extends AST.CWSASTVisitor {
         if (node.expr.func instanceof AST.TypePath) {
           ty = this.visitType(node.expr.func);
         } else {
-          ty = this.scope.getSymbol<Type>(node.expr.func.value);
+          ty = this.getSymbol<Type>(node.expr.func.value);
         }
         if (!(ty instanceof ContractDefn)) {
           throw this.makeError(
@@ -1132,7 +1155,7 @@ export class CWSInterpreterVisitor extends AST.CWSASTVisitor {
           let args_ = node.expr.args.map((x) => new Arg(this.visit(x)));
           let val = this.callFn(fn, args_);
           if (val.ty.isSubOf(InstantiateMsgT)) {
-            let res = this.scope.getSymbol<StructInstance>('$res');
+            let res = this.getSymbol<StructInstance>('$res');
             let messages = res.getSymbol<ListInstance>('messages');
             this.callMethod(messages, 'push', [val]);
           } else {
@@ -1147,7 +1170,7 @@ export class CWSInterpreterVisitor extends AST.CWSASTVisitor {
       // not #new
       let val = this.visit<Value>(node.expr);
       if (val.ty.isSubOf(InstantiateMsgT)) {
-        let res = this.scope.getSymbol<StructInstance>('$res');
+        let res = this.getSymbol<StructInstance>('$res');
         let messages =
           res.getSymbol<ListInstance<typeof InstantiateMsgT>>('messages');
         this.callMethod(messages, 'push', [val]);
@@ -1162,7 +1185,7 @@ export class CWSInterpreterVisitor extends AST.CWSASTVisitor {
 
   visitReturnStmt(node: AST.ReturnStmt) {
     let val = this.visit<Value>(node.expr);
-    return new Return(val);
+    throw new Return(val);
   }
 
   visitFailStmt(node: AST.FailStmt) {
@@ -1176,7 +1199,7 @@ export class CWSInterpreterVisitor extends AST.CWSASTVisitor {
       if (result.isOfType(StringT)) {
         result = Err_Generic.value(args([], { message: result }));
       }
-      return new Failure(result);
+      throw new Failure(result);
     }
   }
 
@@ -1244,13 +1267,22 @@ export class CWSInterpreterVisitor extends AST.CWSASTVisitor {
     // create a new scope for the function call
     this.pushScope(fn.subscope(scope));
     fn.setArgsInScope(this.scope, args);
-
     let result: Value;
-    if (fn instanceof MethodDefn) {
-      result = fn.call(args[0].value, ...args.slice(1).map((x) => x.value));
-    } else {
-      // evaluate the function body in the new scope
-      result = this.visit(fn.body);
+    try {
+      if (fn instanceof MethodDefn) {
+        result = fn.call(args[0].value, ...args.slice(1).map((x) => x.value));
+      } else {
+        // evaluate the function body in the new scope
+        result = this.visit(fn.body);
+      }
+    } catch (e) {
+      if (e instanceof Return) {
+        result = e.value;
+      } else if (e instanceof Failure) {
+        result = e.error;
+      } else {
+        throw e;
+      }
     }
 
     // reset scope
@@ -1260,9 +1292,6 @@ export class CWSInterpreterVisitor extends AST.CWSASTVisitor {
 
   visitFnCallExpr(node: AST.FnCallExpr) {
     const func = this.visit(node.func);
-    if (func instanceof DebugCall) {
-      return func.call(this.interpreter, node.args);
-    }
     const args = node.args.map((x) => this.visitArg(x));
     if (func instanceof FnDefn) {
       if (func.fallible && !node.fallible) {
@@ -1393,7 +1422,7 @@ export class CWSInterpreterVisitor extends AST.CWSASTVisitor {
         let ty = this.visitType(c.ty);
         if (result.error.isOfType(ty)) {
           if (c.name !== null) {
-            this.scope.setSymbol(c.name.value, result.error);
+            this.setSymbol(c.name.value, result.error);
           }
           return this.visit(c.body);
         }
@@ -1495,13 +1524,10 @@ export class CWSInterpreterVisitor extends AST.CWSASTVisitor {
 
   visitIdent(node: AST.Ident) {
     // special ! function case
-    if (
-      !this.scope.hasSymbol(node.value) &&
-      this.scope.hasSymbol(node.value + '#!')
-    ) {
-      return this.scope.getSymbol(node.value + '#!');
+    if (!this.hasSymbol(node.value) && this.hasSymbol(node.value + '#!')) {
+      return this.getSymbol(node.value + '#!');
     }
-    return this.scope.getSymbol(node.value);
+    return this.getSymbol(node.value);
   }
 
   visitGroupedExpr(node: AST.GroupedExpr) {

@@ -87,6 +87,7 @@ describe('Interpreter: TerraswapToken', () => {
       })
     );
     console.log(res2);
+    myToken.state;
     expect(TerraswapToken).toBeInstanceOf(ContractDefn);
   });
 });

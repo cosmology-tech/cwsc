@@ -219,13 +219,13 @@ export class TextView {
     };
   }
 
-  public rangeFromNodeCtx(ctx: ParserRuleContext): Range | null {
-    let pos = getPosition(ctx);
+  public rangeOfNode(ctx: ParserRuleContext): Range | null {
+    let pos = getIx(ctx);
     return this.range(pos.start, pos.end);
   }
 }
 
-export function getPosition(ctx: ParserRuleContext): NodePosition {
+export function getIx(ctx: ParserRuleContext): TextIndices {
   let start = ctx.start.startIndex;
   let end = ctx.stop?.stopIndex || ctx.start.stopIndex;
   let length = end - start + 1;
@@ -236,11 +236,17 @@ export function getPosition(ctx: ParserRuleContext): NodePosition {
   };
 }
 
-export interface NodePosition {
+/**
+ * Returns the start and end indices of the given node.
+ */
+export interface TextIndices {
   start: number;
   end: number;
 }
 
+/**
+ * Compatible with LSP's Range object -- 0-indexed.
+ */
 export interface Range {
   start: {
     line: number;

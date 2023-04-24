@@ -1,4 +1,4 @@
-import { TextView } from '../util/position';
+import { TextView } from './position';
 import { Diagnostic } from 'vscode-languageserver';
 
 import chalk from 'chalk';

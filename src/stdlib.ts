@@ -199,8 +199,8 @@ export class Value<
   }
 
   getSymbol<T = any>(name: string): T {
-    if (!this.hasOwnSymbol(name)) {
-      if (this.ty.hasOwnSymbol(name)) {
+    if (!(name in this.symbols)) {
+      if (name in this.ty.symbols) {
         let x = this.ty.getSymbol(name);
         if (x instanceof TypeMethod) {
           return x.bind(this) as any;

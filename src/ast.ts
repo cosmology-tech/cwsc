@@ -42,6 +42,16 @@ export class AST {
     return Array.from(this.walkAncestors(true));
   }
 
+  public get nearestNodeCtx(): ParserRuleContext {
+    for (const ancestor of this.ancestorsAndSelf) {
+      if (ancestor.$ctx !== null) {
+        return ancestor.$ctx;
+      }
+    }
+    // not possible
+    throw new Error('No ancestor has a context');
+  }
+
   public nearestAncestorWhere(predicate: (x: AST) => boolean): AST | undefined {
     for (const ancestor of this.walkAncestors()) {
       if (predicate(ancestor)) {

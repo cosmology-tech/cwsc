@@ -118,7 +118,7 @@ contract TerraswapToken implements CW20 {
   // you need to call it like this: validate_accounts!(...)
   fn validate_accounts!(accounts: CW20.Coin[]) {
     let addresses = [];
-  	for { address } in [accounts, []] {
+  	for { address } in accounts {
   	  if (address in addresses) {
   	    fail! DuplicateInitialBalanceAddress(address);
   	  }
@@ -129,29 +129,30 @@ contract TerraswapToken implements CW20 {
   // we can access the special $-message context variables in a function by
   // passing it in. it must be the first argument of the function you are
   // defining.
-  fn create_accounts!(state, accounts: CW20.Coin[]) -> Int {
+  fn create_accounts!($state, accounts: CW20.Coin[]) -> Int {
     let total_supply = 0
     for row in accounts {
       let addr = Address!(row.address)
       $state.balances[addr] = row.amount
       total_supply += row.amount
-    return total_supply
+      return total_supply
+    }
   }
 
   // the #instantiate definition acts like the "constructor" and is called
   // when the contract is first instantiated.
   // note that the "#" is part of the name, and "instantiate" is a reserved
   // keyword, so they cannot use it as its own function
-  #instantiate
+  #instantiate(
     name: String,
     symbol: String,
     decimals: U8,
     initial_balances: CW20.Coin[], // we use the fully qualified type here
     mint?: MinterData // MinterResponse is loaded in because we are implementing the type
   ) {
-    bepo
     validate_accounts!(initial_balances) // usage of validate_accounts! function
     let total_supply = create_accounts!($state, initial_balances)
+
 
     // mint?.cap? <- let's break this down
     // mint?. <- this means if "mint" is None, then the result of the expression is "None",
@@ -164,8 +165,7 @@ contract TerraswapToken implements CW20 {
     if mint? {
 	  let mint = MinterData(Address!(mint.minter), mint.cap)
     }
-
-	$state.token_info = TokenInfo(name, symbol, decimals, U128(total_supply), mint)
+    $state.token_info = TokenInfo(name, symbol, decimals, total_supply, mint)
   }
 
   exec #transfer(recipient: String, amount: Int) {

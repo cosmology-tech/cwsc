@@ -46,23 +46,11 @@ export default class ParseCommand extends BaseCommand<typeof ParseCommand> {
 
     this.debug(`Parsing ${args.file} into ${flags.format}...`);
     let sourceInput = fs.readFileSync(args.file, 'utf8');
-    let sourceText = new TextView(sourceInput);
-    let res = CWScriptParser.parse(sourceInput);
-
-    if (!res.ast) {
-      for (let err of res.diagnostics.filter(
-        (x: { severity: number }) => x.severity === DiagnosticSeverity.Error
-      )) {
-        this.log(
-          errorReportWithCodeSnippet(path.resolve(args.file), sourceText, err)
-        );
-      }
-      this.error('No AST produced by parser.');
-    }
+    let ast = new CWSParser(sourceInput, args.file).parse();
     if (flags.out) {
-      fs.writeFileSync(flags.out!, JSON.stringify(res.ast!.toJSON()));
+      fs.writeFileSync(flags.out, JSON.stringify(ast.toJSON()));
     } else {
-      console.log(res.ast!.toJSON());
+      console.log(ast.toJSON());
     }
   }
 }
