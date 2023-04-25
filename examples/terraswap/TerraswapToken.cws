@@ -135,8 +135,8 @@ contract TerraswapToken implements CW20 {
       let addr = Address!(row.address)
       $state.balances[addr] = row.amount
       total_supply += row.amount
-      return total_supply
     }
+    return total_supply
   }
 
   // the #instantiate definition acts like the "constructor" and is called
@@ -152,8 +152,6 @@ contract TerraswapToken implements CW20 {
   ) {
     validate_accounts!(initial_balances) // usage of validate_accounts! function
     let total_supply = create_accounts!($state, initial_balances)
-
-
     // mint?.cap? <- let's break this down
     // mint?. <- this means if "mint" is None, then the result of the expression is "None",
     // else, it continues. sort of like unwrap or

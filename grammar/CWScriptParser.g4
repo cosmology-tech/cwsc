@@ -114,16 +114,19 @@ variant_unit: HASH (name = ident);
 
 // Type Expressions
 typeExpr:
-    typePath # PathT
+    LT typeExpr GT                                                    # TypeAppT
+    | typePath # PathT
     | typeVariant # VariantT
 	| typeLens # LensT
 	| fnType # FnT
-    | typeExpr QUEST                                                    # OptionT
-    | typeExpr LBRACK (len=IntLiteral)? RBRACK                          # ListT
-    | LBRACK (items+=typeExpr (COMMA items+=typeExpr)*)? RBRACK 		# TupleT
-    | typeDefn                                                          # DefnT;
+    | typeExpr QUEST                                                 # OptionT
+    | typeExpr LBRACK (len=IntLiteral)? RBRACK                       # ListT
+    | LBRACK (items+=typeExpr (COMMA items+=typeExpr)*)? RBRACK      # TupleT
+    | typePath LT (args+=typeArg) (COMMA args+=typeArg)* GT          # ParamzdT
+    | typeDefn                                                       # DefnT;
 
-fnType: (fallible=BANG)? LPAREN (params=paramList)? RPAREN ARROW retTy=typeExpr;
+typeArg: (name=ident EQ)? (value=typeExpr);
+fnType: FN (fallible=BANG)? LPAREN (params=paramList)? RPAREN ARROW retTy=typeExpr;
 
 typeLens: scope=(INSTANTIATE | EXEC | QUERY | MUT) typePath;
 typePath: (segments+=ident) (DOT segments+=ident)*;

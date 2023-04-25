@@ -59,6 +59,7 @@ import { getIx, TextView } from './util/position';
 import chalk from 'chalk';
 
 import path from 'path';
+import { errorReportWithCodeSnippet } from './util/diagnostics';
 
 //region <HELPER FUNCTIONS>
 
@@ -337,6 +338,7 @@ export class CWSInterpreter extends SymbolTable {
   }
 
   runCode(sourceText: string, file: string = ':memory:') {
+    let tv = new TextView(sourceText);
     let ast = new CWSParser(sourceText, file).parse();
     this.visitor = new CWSInterpreterVisitor(this, sourceText, file);
     this.visitor.visit(ast); // run
@@ -530,32 +532,22 @@ export class CWSInterpreterVisitor extends AST.CWSASTVisitor {
     return new InterpreterError(message);
   }
 
-  // visit<T = any>(node: AST.AST): T {
-  //   try {
-  //     if (this.debugMode) {
-  //       console.log(
-  //         `Scope: ${this.scope
-  //           .getTrail()
-  //           .map((x) => x.constructor.name)
-  //           .join(' > ')}`
-  //       );
-  //       console.table(this.scope.symbols);
-  //       debugger;
-  //     }
-  //     return super.visit(node);
-  //   } catch (e) {
-  //     if (
-  //       e instanceof InterpreterError ||
-  //       e instanceof Return ||
-  //       e instanceof Failure
-  //     ) {
-  //       throw e;
-  //     } else {
-  //       throw this.makeError((e as any).message, node);
-  //     }
-  //   }
-  // }
-  //
+  visit<T = any>(node: AST.AST): T {
+    try {
+      return super.visit(node);
+    } catch (e) {
+      if (
+        e instanceof InterpreterError ||
+        e instanceof Return ||
+        e instanceof Failure
+      ) {
+        throw e;
+      } else {
+        throw this.makeError((e as any).message, node);
+      }
+    }
+  }
+
   //region <PERVASIVES>
 
   visitSourceFile(node: AST.SourceFile) {
