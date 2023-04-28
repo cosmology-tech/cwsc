@@ -20,10 +20,28 @@ export class AST {
   }
 
   public get children(): AST[] {
-    let { $parent, $ctx, ...rest } = this;
-    return Object.values(rest)
-      .filter((x) => x instanceof AST)
-      .map((x) => x as AST);
+    return Object.entries(this)
+      .filter(
+        ([key, value]) =>
+          AST.isNode(value) && key !== '$parent' && key !== '$ctx'
+      )
+      .map(([_, value]) => value);
+  }
+
+  public get ancestors(): AST[] {
+    const result = [];
+    for (const ancestor of this.walkAncestors()) {
+      result.push(ancestor);
+    }
+    return result;
+  }
+
+  public get ancestorsAndSelf(): AST[] {
+    const result = [];
+    for (const ancestor of this.walkAncestors(true)) {
+      result.push(ancestor);
+    }
+    return result;
   }
 
   public *walkAncestors(includeSelf: boolean = false): IterableIterator<AST> {
@@ -32,14 +50,6 @@ export class AST {
       yield parent;
       parent = parent.$parent;
     }
-  }
-
-  public get ancestors(): AST[] {
-    return Array.from(this.walkAncestors());
-  }
-
-  public get ancestorsAndSelf(): AST[] {
-    return Array.from(this.walkAncestors(true));
   }
 
   public get nearestNodeCtx(): ParserRuleContext {
