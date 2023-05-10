@@ -39,7 +39,7 @@
 //
 // export class CWSSyntaxErrorListener
 //   extends CWSDiagnosticsCollector
-//   implements ANTLRErrorListener<any>
+//   implementNTLRErrorListener<any>
 // {
 //   public diagnostics: Diagnostic[] = [];
 //
