@@ -101,6 +101,7 @@
     "ts-results": "^3.3.0",
     "vscode-languageserver": "^8.1.0",
     "winston": "^3.8.2",
-    "yaml": "^1.10.2"
+    "yaml": "^1.10.2",
+    "zod": "^3.22.2"
   }
 }
