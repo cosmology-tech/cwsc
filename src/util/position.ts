@@ -1,4 +1,5 @@
 import { ParserRuleContext } from 'antlr4ts';
+import { TerminalNode } from 'antlr4ts/tree/TerminalNode';
 import { LinesAndColumns } from 'lines-and-columns';
 
 export class TextView {
@@ -222,6 +223,11 @@ export class TextView {
   public rangeOfNode(ctx: ParserRuleContext): Range | null {
     let pos = getIx(ctx);
     return this.range(pos.start, pos.end);
+  }
+  
+  public rangeOfToken(ctx: ParserRuleContext, token: string): Range | null {
+    const node = (ctx as any)[token]() as TerminalNode;
+    return this.range(node.symbol.startIndex, node.symbol.stopIndex + 1);
   }
 }
 

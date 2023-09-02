@@ -223,6 +223,26 @@ contract AtomicOrderExample extends CW2 {
 
 }
 
+Disclaimer:
+
+The software provided herein may contain personal intellectual property that is protected under applicable laws and regulations. The ownership and rights to such intellectual property remain vested in the original creator or rightful owner. By using this software, you acknowledge and agree to the following:
+
+1. Intellectual Property Rights: The software may include, but is not limited to, proprietary algorithms, designs, code, processes, trade secrets, trademarks, patents, and other intellectual property. These intellectual property rights are protected by copyright laws and other relevant intellectual property legislation.
+
+2. Restrictions on Use: You are granted a limited, non-exclusive, non-transferable license to use the software solely for your personal or internal business purposes. You may not modify, distribute, reproduce, reverse engineer, decompile, disassemble, or create derivative works based on the software without the explicit written permission of the owner.
+
+3. No Transfer of Ownership: Your use of the software does not grant you any ownership rights or intellectual property rights in the software. All rights not expressly granted to you are reserved by the owner.
+
+4. No Warranty: The software is provided on an "as-is" basis without any warranties, express or implied. The owner does not guarantee the accuracy, reliability, or performance of the software. You acknowledge that the use of the software is at your own risk, and the owner shall not be liable for any damages or losses arising from the use or inability to use the software.
+
+5. Compliance with Laws: You agree to use the software in compliance with all applicable laws, regulations, and third-party rights. You are solely responsible for obtaining any necessary permissions, licenses, or consents required to use the software.
+
+6. Indemnification: You agree to indemnify, defend, and hold harmless the owner and its affiliates, officers, directors, employees, and agents from any claims, liabilities, damages, losses, costs, or expenses arising out of or in connection with your use of the software, including any breach of this disclaimer.
+
+7. Modifications: The owner reserves the right to modify or update this disclaimer at any time without prior notice. It is your responsibility to review the disclaimer periodically for any changes.
+
+By using this software, you acknowledge that you have read, understood, and agreed to the terms and conditions set forth in this disclaimer. If you do not agree with any part of this disclaimer, please refrain from using the software.
+
 ```
 
 ## License
