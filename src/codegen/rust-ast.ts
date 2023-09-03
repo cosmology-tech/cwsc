@@ -1,6 +1,22 @@
+import {
+  TokenSeq,
+  T,
+  Text,
+  Sym,
+  Token,
+  quote,
+  dquote,
+  braces,
+  angles,
+  parens,
+  spaced,
+  csl,
+  seq,
+} from './code-tokens';
+
 // Abstract base class for all Rust AST nodes
 export abstract class RustAST {
-  abstract render(): string;
+  abstract render(): TokenSeq;
 }
 
 // Identifier node
@@ -9,8 +25,8 @@ export class Ident extends RustAST {
     super();
   }
 
-  render(): string {
-    return this.text;
+  render(): TokenSeq {
+    return new Text(this.text).toSeq();
   }
 }
 
@@ -20,8 +36,8 @@ export class StrLit extends RustAST {
     super();
   }
 
-  render(): string {
-    return `"${this.innerText}"`;
+  render(): TokenSeq {
+    return new Text('"' + this.innerText + '"').toSeq();
   }
 }
 
@@ -29,21 +45,49 @@ export class StrLit extends RustAST {
 export class Path extends RustAST {
   constructor(public elements: RustAST[]) {
     super();
+    if (
+      this.elements[0] instanceof Root &&
+      this.elements.length > 1 &&
+      !(this.elements[1] instanceof Ident)
+    ) {
+      throw new Error('Root must be the first element if it is root');
+    }
   }
 
-  render(): string {
-    return this.elements.map((e) => e.render()).join('::');
+  render(): TokenSeq {
+    return seq(...this.elements.map((e) => e.render()));
   }
 }
 
-// PathSet node, represents a set of paths
+export class Root extends RustAST {
+  render(): TokenSeq {
+    return TokenSeq.EMPTY;
+  }
+}
+
 export class PathSet extends RustAST {
   constructor(public elements: RustAST[]) {
     super();
   }
 
-  render(): string {
-    return `{ ${this.elements.map((e) => e.render()).join(', ')} }`;
+  render(): TokenSeq {
+    return braces(csl(...this.elements.map((x) => x.render())));
+  }
+}
+
+export class Generic extends RustAST {
+  constructor(public elements: RustAST[]) {
+    super();
+  }
+
+  render(): TokenSeq {
+    return angles(...this.elements.map((e) => e.render()));
+  }
+}
+
+export class Wildcard extends RustAST {
+  render(): TokenSeq {
+    return new Text('*').toSeq();
   }
 }
 
@@ -53,8 +97,8 @@ export class UseStmt extends RustAST {
     super();
   }
 
-  render(): string {
-    return `use ${this.path.render()};`;
+  render(): TokenSeq {
+    return seq(T.kw('use'), T.SPACE, this.path.render(), T.SEMI);
   }
 }
 
@@ -68,17 +112,15 @@ export class ConstStmt extends RustAST {
     super();
   }
 
-  render(): string {
-    // if ty is not provided, infer it from value
-    let res = `const ${this.ident.render()}`;
+  render(): TokenSeq {
+    let res = new TokenSeq(T.kw('const'), T.SPACE, this.ident.render());
     if (this.ty) {
-      res += `: ${this.ty.render()}`;
+      res = res.append(T.SPACE, T.COLON, T.SPACE, this.ty.render());
     }
     if (this.value) {
-      res += ` = ${this.value.render()}`;
+      res = res.append(T.SPACE, T.EQ, T.SPACE, this.value.render());
     }
-    res += ';';
-    return res;
+    return res.append(T.SEMI);
   }
 }
 
@@ -88,8 +130,8 @@ export class Param extends RustAST {
     super();
   }
 
-  render(): string {
-    return `${this.name.render()}: ${this.ty.render()}`;
+  render(): TokenSeq {
+    return seq(this.name.render(), T.COLON, T.SPACE, this.ty.render());
   }
 }
 
@@ -104,11 +146,19 @@ export class FnDefn extends RustAST {
     super();
   }
 
-  render(): string {
-    return `fn ${this.name.render()}(${this.params
-      .map((p) => p.render())
-      .join(', ')}) -> ${this.returnTy.render()} {
-      ${this.body.map((b) => b.render()).join('\n')}}`;
+  render(): TokenSeq {
+    return seq(
+      T.kw('fn'),
+      T.SPACE,
+      this.name.render(),
+      parens(csl(...this.params.map((p) => p.render()))),
+      T.SPACE,
+      T.ARROW,
+      T.SPACE,
+      this.returnTy.render(),
+      T.SPACE,
+      braces(...this.body.map((b) => b.render()))
+    );
   }
 }
 
@@ -118,12 +168,12 @@ export class StructMember extends RustAST {
     super();
   }
 
-  render(): string {
+  render(): TokenSeq {
+    let res = this.name.render();
     if (this.value) {
-      return `${this.name.render()}: ${this.value.render()}`;
-    } else {
-      return this.name.render();
+      res = res.append(T.COLON, T.SPACE, this.value.render());
     }
+    return res;
   }
 }
 
@@ -133,10 +183,12 @@ export class StructExpr extends RustAST {
     super();
   }
 
-  render(): string {
-    return `${this.ty.render()} {
-      ${this.members.map((m) => m.render()).join(',\n')}
-    }`;
+  render(): TokenSeq {
+    return seq(
+      this.ty.render(),
+      T.SPACE,
+      braces(csl(...this.members.map((m) => m.render())))
+    );
   }
 }
 
@@ -146,10 +198,11 @@ export class FnCallExpr extends RustAST {
     super();
   }
 
-  render(): string {
-    return `${this.fn.render()}(${this.args
-      .map((a) => a.render())
-      .join(', ')})`;
+  render(): TokenSeq {
+    return seq(
+      this.fn.render(),
+      parens(csl(...this.args.map((a) => a.render())))
+    );
   }
 }
 
@@ -159,8 +212,8 @@ export class RefExpr extends RustAST {
     super();
   }
 
-  render(): string {
-    return `&${this.arg.render()}`;
+  render(): TokenSeq {
+    return this.arg.render().prepend(T.AMP);
   }
 }
 
@@ -170,8 +223,8 @@ export class UnwrapExpr extends RustAST {
     super();
   }
 
-  render(): string {
-    return `${this.arg.render()}?`;
+  render(): TokenSeq {
+    return this.arg.render().append(T.QUESTION);
   }
 }
 
@@ -181,8 +234,8 @@ export class DotExpr extends RustAST {
     super();
   }
 
-  render(): string {
-    return `${this.lhs.render()}.${this.rhs.render()}`;
+  render(): TokenSeq {
+    return seq(this.lhs.render(), T.DOT, this.rhs.render());
   }
 }
 
@@ -192,8 +245,8 @@ export class DColExpr extends RustAST {
     super();
   }
 
-  render(): string {
-    return `${this.lhs.render()}::${this.rhs.render()}`;
+  render(): TokenSeq {
+    return seq(this.lhs.render(), T.DCOLON, this.rhs.render());
   }
 }
 
@@ -203,8 +256,8 @@ export class SourceFile extends RustAST {
     super();
   }
 
-  render(): string {
-    return this.elements.map((e) => e.render()).join('\n');
+  render(): TokenSeq {
+    return csl(...this.elements.map((e) => e.render()));
   }
 }
 
