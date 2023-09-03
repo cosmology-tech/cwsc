@@ -4,6 +4,7 @@ import {
   Text,
   Sym,
   Token,
+  indent,
   quote,
   dquote,
   braces,
@@ -14,6 +15,8 @@ import {
   seq,
   compose,
 } from './code-tokens';
+
+import { CodeWriter } from './code-writer';
 
 // Abstract base class for all Rust AST nodes
 export abstract class RustAST {
@@ -56,7 +59,10 @@ export class Path extends RustAST {
   }
 
   render(): TokenSeq {
-    return seq(...this.elements.map((e) => e.render()));
+    return compose(
+      { between: T.DCOLON },
+      ...this.elements.map((e) => e.render())
+    );
   }
 }
 
@@ -72,7 +78,7 @@ export class PathSet extends RustAST {
   }
 
   render(): TokenSeq {
-    return braces(csl(...this.elements.map((x) => x.render())));
+    return braces(indent(csl(...this.elements.map((x) => x.render()))));
   }
 }
 
@@ -322,7 +328,7 @@ export class ModDefn extends RustAST {
       T.SPACE,
       this.name.render(),
       T.SPACE,
-      braces(csl(...this.body.map((b) => b.render())))
+      braces(indent(csl(...this.body.map((b) => b.render()))))
     );
   }
 }
@@ -399,36 +405,65 @@ export class BinOpExpr extends RustAST {
   }
 }
 
+// Array expression node
+export class ArrayExpr extends RustAST {
+  constructor(public elements: RustAST[]) {
+    super();
+  }
+
+  render(): TokenSeq {
+    return seq(
+      T.LBRACKET,
+      csl(...this.elements.map((e) => e.render())),
+      T.RBRACKET
+    );
+  }
+}
+
+// Tuple expression node
+export class TupleExpr extends RustAST {
+  constructor(public elements: RustAST[]) {
+    super();
+  }
+
+  render(): TokenSeq {
+    return seq(
+      T.LPAREN,
+      csl(...this.elements.map((e) => e.render())),
+      T.RPAREN
+    );
+  }
+}
 // Shortcut functions
-function I(text: string): Ident {
+export function I(text: string): Ident {
   return new Ident(text);
 }
 
-function strLit(innerText: string): StrLit {
+export function strLit(innerText: string): StrLit {
   return new StrLit(innerText);
 }
 
-function path(...elements: RustAST[]): Path {
+export function path(...elements: RustAST[]): Path {
   return new Path(elements);
 }
 
-function set(...elements: RustAST[]): PathSet {
+export function set(...elements: RustAST[]): PathSet {
   return new PathSet(elements);
 }
 
-function useStmt(path: Path): UseStmt {
+export function useStmt(path: Path): UseStmt {
   return new UseStmt(path);
 }
 
-function constStmt(ident: Ident, value?: RustAST): ConstStmt {
+export function constStmt(ident: Ident, value?: RustAST): ConstStmt {
   return new ConstStmt(ident, undefined, value);
 }
 
-function param(name: Ident, ty: RustAST): Param {
+export function param(name: Ident, ty: RustAST): Param {
   return new Param(name, ty);
 }
 
-function fnDefn(
+export function fnDefn(
   name: Ident,
   params: Param[],
   returnTy: RustAST,
@@ -437,47 +472,47 @@ function fnDefn(
   return new FnDefn(name, params, returnTy, body);
 }
 
-function structMember(name: Ident, value?: RustAST): StructMember {
+export function structMember(name: Ident, value?: RustAST): StructMember {
   return new StructMember(name, value);
 }
 
-function structExpr(ty: RustAST, members: StructMember[]): StructExpr {
+export function structExpr(ty: RustAST, members: StructMember[]): StructExpr {
   return new StructExpr(ty, members);
 }
 
-function fnCallExpr(fn: RustAST, args: RustAST[]): FnCallExpr {
+export function fnCallExpr(fn: RustAST, args: RustAST[]): FnCallExpr {
   return new FnCallExpr(fn, args);
 }
 
-function refExpr(arg: RustAST): RefExpr {
+export function refExpr(arg: RustAST): RefExpr {
   return new RefExpr(arg);
 }
 
-function dotExpr(lhs: RustAST, rhs: RustAST): DotExpr {
+export function dotExpr(lhs: RustAST, rhs: RustAST): DotExpr {
   return new DotExpr(lhs, rhs);
 }
 
-function dColExpr(lhs: RustAST, rhs: RustAST): DColExpr {
+export function dColExpr(lhs: RustAST, rhs: RustAST): DColExpr {
   return new DColExpr(lhs, rhs);
 }
 
-function letStmt(name: Ident, value: RustAST): LetStmt {
+export function letStmt(name: Ident, value: RustAST): LetStmt {
   return new LetStmt(name, value);
 }
 
-function matchStmt(expr: RustAST, arms: MatchArm[]): MatchStmt {
+export function matchStmt(expr: RustAST, arms: MatchArm[]): MatchStmt {
   return new MatchStmt(expr, arms);
 }
 
-function matchArm(pattern: RustAST, body: RustAST): MatchArm {
+export function matchArm(pattern: RustAST, body: RustAST): MatchArm {
   return new MatchArm(pattern, body);
 }
 
-function modDefn(name: Ident, body: RustAST[]): ModDefn {
+export function modDefn(name: Ident, body: RustAST[]): ModDefn {
   return new ModDefn(name, body);
 }
 
-function closureExpr(
+export function closureExpr(
   params: Param[],
   returnTy: RustAST,
   body: RustAST[]
@@ -485,7 +520,7 @@ function closureExpr(
   return new ClosureExpr(params, returnTy, body);
 }
 
-function ifStmt(
+export function ifStmt(
   condition: RustAST,
   thenBranch: RustAST[],
   elseBranch: RustAST[] = []
@@ -493,18 +528,18 @@ function ifStmt(
   return new IfStmt(condition, thenBranch, elseBranch);
 }
 
-function binOpExpr(lhs: RustAST, op: string, rhs: RustAST): BinOpExpr {
+export function binOpExpr(lhs: RustAST, op: string, rhs: RustAST): BinOpExpr {
   return new BinOpExpr(lhs, op, rhs);
 }
 
-function file(...elements: RustAST[]): SourceFile {
+export function file(...elements: RustAST[]): SourceFile {
   return new SourceFile(elements);
 }
 
-function unwrapExpr(arg: RustAST): UnwrapExpr {
+export function unwrapExpr(arg: RustAST): UnwrapExpr {
   return new UnwrapExpr(arg);
 }
-function use(...elements: RustAST[]): UseStmt {
+export function use(...elements: RustAST[]): UseStmt {
   return new UseStmt(path(...elements));
 }
 
@@ -544,177 +579,7 @@ let contract_rs = file(
     I('CONTRACT_VERSION'),
     fnCallExpr(I('env'), [strLit('CARGO_PKG_VERSION')])
   ),
-  fnDefn(
-    I('foo'),
-    [param(I('T'), path(I('Into'), I('ContractError')))],
-    path(I('Result')),
-    [fnCallExpr(I('Ok'), [structExpr([])])]
-  ),
-  fnDefn(
-    I('instantiate'),
-    [
-      param(I('deps'), I('DepsMut')),
-      param(I('_env'), I('Env')),
-      param(I('info'), I('MessageInfo')),
-      param(I('msg'), I('InstantiateMsg')),
-    ],
-    path(I('Result')),
-    [
-      letStmt(
-        I('state'),
-        structExpr([
-          structMember(I('count'), dotExpr(I('msg'), I('count'))),
-          structMember(
-            I('owner'),
-            fnCallExpr(dotExpr(I('info'), I('sender')), [I('clone')])
-          ),
-        ])
-      ),
-      fnCallExpr(I('set_contract_version'), [
-        dotExpr(I('deps'), I('storage')),
-        I('CONTRACT_NAME'),
-        I('CONTRACT_VERSION'),
-      ]),
-      fnCallExpr(dotExpr(I('STATE'), I('save')), [
-        dotExpr(I('deps'), I('storage')),
-        refExpr(I('state')),
-      ]),
-      letStmt(I('_a'), noneExpr()),
-      letStmt(I('_b'), noneExpr()),
-      fnCallExpr(I('Ok'), [
-        fnCallExpr(I('Response'), [
-          fnCallExpr(I('new'), []),
-          fnCallExpr(I('add_attribute'), [
-            strLit('method'),
-            strLit('instantiate'),
-          ]),
-          fnCallExpr(I('add_attribute'), [
-            strLit('owner'),
-            dotExpr(I('info'), I('sender')),
-          ]),
-          fnCallExpr(I('add_attribute'), [
-            strLit('count'),
-            fnCallExpr(dotExpr(I('msg'), I('count')), [I('to_string')]),
-          ]),
-        ]),
-      ]),
-    ]
-  ),
-  fnDefn(
-    I('execute'),
-    [
-      param(I('deps'), I('DepsMut')),
-      param(I('_env'), I('Env')),
-      param(I('info'), I('MessageInfo')),
-      param(I('msg'), I('ExecuteMsg')),
-    ],
-    path(I('Result')),
-    [
-      matchStmt(I('msg'), [
-        matchArm(
-          structExpr([structMember(I('Increment'))]),
-          fnCallExpr(path(I('execute'), I('increment')), [I('deps')])
-        ),
-        matchArm(
-          structExpr([structMember(I('Reset'), I('count'))]),
-          fnCallExpr(path(I('execute'), I('reset')), [
-            I('deps'),
-            I('info'),
-            I('count'),
-          ])
-        ),
-      ]),
-    ]
-  ),
-  modDefn(I('execute'), [
-    use(path(I('super'))),
-    fnDefn(
-      I('increment'),
-      [param(I('deps'), I('DepsMut'))],
-      path(I('Result')),
-      [
-        fnCallExpr(dotExpr(I('STATE'), I('update')), [
-          dotExpr(I('deps'), I('storage')),
-          closureExpr([param(I('mut state'), noneExpr())], path(I('Result')), [
-            binOpExpr(dotExpr(I('state'), I('count')), '+', I('1')),
-            fnCallExpr(I('Ok'), [I('state')]),
-          ]),
-        ]),
-        fnCallExpr(I('Ok'), [
-          fnCallExpr(I('Response'), [
-            fnCallExpr(I('new'), []),
-            fnCallExpr(I('add_attribute'), [
-              strLit('action'),
-              strLit('increment'),
-            ]),
-          ]),
-        ]),
-      ]
-    ),
-    fnDefn(
-      I('reset'),
-      [
-        param(I('deps'), I('DepsMut')),
-        param(I('info'), I('MessageInfo')),
-        param(I('count'), I('i32')),
-      ],
-      path(I('Result')),
-      [
-        call(dot(I('STATE'), I('update')), [
-          dot(I('deps'), I('storage')),
-          closure([param(I('mut state'), none())], path(I('Result')), [
-            ifStmt(
-              op(
-                dot(I('info'), I('sender')),
-                '!=',
-                dot(I('state'), I('owner'))
-              ),
-              [call(I('Err'), [structExpr([structMember(I('Unauthorized'))])])],
-              []
-            ),
-            op(dot(I('state'), I('count')), '=', I('count')),
-            call(I('Ok'), [I('state')]),
-          ]),
-        ]),
-        call(I('Ok'), [
-          call(I('Response'), [
-            call(I('new'), []),
-            call(I('add_attribute'), [strLit('action'), strLit('reset')]),
-          ]),
-        ]),
-      ]
-    ),
-  ]),
-  fnDefn(
-    I('query'),
-    [
-      param(I('deps'), I('Deps')),
-      param(I('_env'), I('Env')),
-      param(I('msg'), I('QueryMsg')),
-    ],
-    path(I('StdResult')),
-    [
-      matchStmt(I('msg'), [
-        matchArm(
-          structExpr([structMember(I('GetCount'))]),
-          call(I('to_binary'), [
-            call(path(I('query'), I('count')), [I('deps')]),
-          ])
-        ),
-      ]),
-    ]
-  ),
-  modDefn(I('query'), [
-    use(path(I('super'))),
-    fnDefn(I('count'), [param(I('deps'), I('Deps'))], path(I('StdResult')), [
-      letStmt(
-        I('state'),
-        call(dot(I('STATE'), I('load')), [dot(I('deps'), I('storage'))])
-      ),
-      call(I('Ok'), [
-        structExpr([structMember(I('count'), dot(I('state'), I('count')))]),
-      ]),
-    ]),
-  ])
+  modDefn(I('contract'), [constStmt(I('COUNT_KEY'), strLit('count'))])
 );
-console.log(contract_rs.render());
+
+console.log(new CodeWriter().write(contract_rs.render()));
