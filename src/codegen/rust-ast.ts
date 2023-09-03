@@ -12,6 +12,7 @@ import {
   spaced,
   csl,
   seq,
+  compose,
 } from './code-tokens';
 
 // Abstract base class for all Rust AST nodes
@@ -257,7 +258,7 @@ export class SourceFile extends RustAST {
   }
 
   render(): TokenSeq {
-    return csl(...this.elements.map((e) => e.render()));
+    return compose({ between: T.NL }, ...this.elements.map((e) => e.render()));
   }
 }
 
@@ -494,10 +495,6 @@ function ifStmt(
 
 function binOpExpr(lhs: RustAST, op: string, rhs: RustAST): BinOpExpr {
   return new BinOpExpr(lhs, op, rhs);
-}
-
-function noneExpr(): NoneExpr {
-  return new NoneExpr();
 }
 
 function file(...elements: RustAST[]): SourceFile {
