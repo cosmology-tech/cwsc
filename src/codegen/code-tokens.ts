@@ -14,11 +14,11 @@ export class Token {
     }
   }
 
-  append(...tokens: (Token | Token[] | TokenSeq)[]) {
+  append(...tokens: (Token | TokenSeq)[]) {
     return new TokenSeq(this, ...tokens);
   }
 
-  prepend(...tokens: (Token | Token[] | TokenSeq)[]) {
+  prepend(...tokens: (Token | TokenSeq)[]) {
     return new TokenSeq(...tokens, this);
   }
 
@@ -79,90 +79,86 @@ export const T = {
 
 export class TokenSeq {
   public tokens: Token[];
-  constructor(...tokens: (Token | Token[] | TokenSeq)[]) {
-    this.tokens = [];
-    for (const token of tokens) {
-      if (token instanceof TokenSeq) {
-        this.tokens.push(...token.tokens);
-      } else if (token instanceof Array) {
-        this.tokens.push(...token);
-      } else {
-        this.tokens.push(token);
-      }
-    }
+  constructor(...tokens: (Token | TokenSeq)[]) {
+    this.tokens = tokens
+      .map((t) => (t instanceof TokenSeq ? t.tokens : t))
+      .flat();
   }
 
   toToken() {
     return new Token(this);
   }
 
-  prepend(...tokens: (Token | Token[] | TokenSeq)[]) {
+  prepend(...tokens: (Token | TokenSeq)[]) {
     return new TokenSeq(...tokens, ...this.tokens);
   }
 
-  append(...tokens: (Token | Token[] | TokenSeq)[]) {
+  append(...tokens: (Token | TokenSeq)[]) {
     return new TokenSeq(...this.tokens, ...tokens);
   }
 
   static EMPTY = new TokenSeq();
 }
 
-export function seq(...tokens: (Token | Token[] | TokenSeq)[]) {
+export function seq(...tokens: (Token | TokenSeq)[]) {
   return new TokenSeq(...tokens);
 }
 
-export function spaced(...tokens: (Token | Token[] | TokenSeq)[]) {
+export function spaced(...tokens: (Token | TokenSeq)[]) {
   return new TokenSeq(T.SPACE, ...tokens, T.SPACE);
 }
 
-export function interweave(
-  options: Token,
-  ...tokens: (Token | Token[] | TokenSeq)[]
+export interface ComposeOptions {
+  before?: Token | TokenSeq;
+  between?: Token | TokenSeq;
+  after?: Token | TokenSeq;
+}
+
+export function compose(
+  options: ComposeOptions,
+  ...tokens: (Token | TokenSeq)[]
 ) {
-  let items = new TokenSeq(...tokens).tokens;
-  let result = new TokenSeq();
-  while (items.length > 0) {
-    result = result.append(items.shift()!);
-    if (items.length > 0) {
-      result = result.append(token);
+  let result = seq();
+  if (options.before) {
+    result = result.append(options.before);
+  }
+  for (const token of tokens) {
+    if (result.tokens.length > 0 && options.between) {
+      result = result.append(options.between);
     }
+    result = result.append(token);
+  }
+  if (options.after) {
+    result = result.append(options.after);
   }
   return result;
 }
 
 // comma-separated list
-export function csl(...tokens: (Token | Token[] | TokenSeq)[]): TokenSeq {
-  let items = new TokenSeq(...tokens).tokens;
-  let result = new TokenSeq();
-  while (items.length > 0) {
-    result = result.append(items.shift()!);
-    if (items.length > 0) {
-      result = result.append(T.COMMA, T.SPACE);
-    }
-  }
-  return result;
+export function csl(...tokens: (Token | TokenSeq)[]): TokenSeq {
+  return compose({ between: seq(T.COMMA, T.SPACE) }, ...tokens);
 }
 
-export function braces(...tokens: (Token | Token[] | TokenSeq)[]): TokenSeq {
-  return new TokenSeq(T.LBRACE, ...tokens, T.RBRACE);
+export function braces(...tokens: (Token | TokenSeq)[]): TokenSeq {
+  return seq(T.LBRACE, ...tokens, T.RBRACE);
 }
 
-export function brackets(...tokens: (Token | Token[] | TokenSeq)[]): TokenSeq {
-  return new TokenSeq(T.LBRACKET, ...tokens, T.RBRACKET);
+export function brackets(...tokens: (Token | TokenSeq)[]): TokenSeq {
+  return seq(T.LBRACKET, ...tokens, T.RBRACKET);
 }
 
-export function parens(...tokens: (Token | Token[] | TokenSeq)[]): TokenSeq {
-  return new TokenSeq(T.LPAREN, ...tokens, T.RPAREN);
+export function parens(...tokens: (Token | TokenSeq)[]): TokenSeq {
+  return seq(T.LPAREN, ...tokens, T.RPAREN);
 }
 
-export function angles(...tokens: (Token | Token[] | TokenSeq)[]): TokenSeq {
-  return new TokenSeq(T.LT, ...tokens, T.GT);
+export function angles(...tokens: (Token | TokenSeq)[]): TokenSeq {
+  return seq(T.LT, ...tokens, T.GT);
 }
 
-export function quote(...tokens: (Token | Token[] | TokenSeq)[]): TokenSeq {
-  return new TokenSeq(T.QUOTE, ...tokens, T.QUOTE);
+export function quote(...tokens: (Token | TokenSeq)[]): TokenSeq {
+  return seq(T.QUOTE, ...tokens, T.QUOTE);
 }
 
-export function dquote(...tokens: (Token | Token[] | TokenSeq)[]): TokenSeq {
-  return new TokenSeq(T.DQUOTE, ...tokens, T.DQUOTE);
+export function dquote(...tokens: (Token | TokenSeq)[]): TokenSeq {
+  return seq(T.DQUOTE, ...tokens, T.DQUOTE);
 }

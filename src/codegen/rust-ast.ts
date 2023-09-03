@@ -267,8 +267,17 @@ export class LetStmt extends RustAST {
     super();
   }
 
-  render(): string {
-    return `let ${this.name.render()} = ${this.value.render()};`;
+  render(): TokenSeq {
+    return seq(
+      T.kw('let'),
+      T.SPACE,
+      this.name.render(),
+      T.SPACE,
+      T.EQ,
+      T.SPACE,
+      this.value.render(),
+      T.SEMI
+    );
   }
 }
 
@@ -278,10 +287,14 @@ export class MatchStmt extends RustAST {
     super();
   }
 
-  render(): string {
-    return `match ${this.expr.render()} {
-      ${this.arms.map((a) => a.render()).join(',\n')}
-    }`;
+  render(): TokenSeq {
+    return seq(
+      T.kw('match'),
+      T.SPACE,
+      this.expr.render(),
+      T.SPACE,
+      braces(csl(...this.arms.map((a) => a.render())))
+    );
   }
 }
 
@@ -291,8 +304,8 @@ export class MatchArm extends RustAST {
     super();
   }
 
-  render(): string {
-    return `${this.pattern.render()} => ${this.body.render()},`;
+  render(): TokenSeq {
+    return seq(this.pattern.render(), T.FAT_ARROW, T.SPACE, this.body.render());
   }
 }
 
@@ -302,10 +315,14 @@ export class ModDefn extends RustAST {
     super();
   }
 
-  render(): string {
-    return `mod ${this.name.render()} {
-      ${this.body.map((b) => b.render()).join('\n')}
-    }`;
+  render(): TokenSeq {
+    return seq(
+      T.kw('mod'),
+      T.SPACE,
+      this.name.render(),
+      T.SPACE,
+      braces(csl(...this.body.map((b) => b.render())))
+    );
   }
 }
 
@@ -319,12 +336,18 @@ export class ClosureExpr extends RustAST {
     super();
   }
 
-  render(): string {
-    return `|${this.params
-      .map((p) => p.render())
-      .join(', ')}| -> ${this.returnTy.render()} {
-      ${this.body.map((b) => b.render()).join('\n')}
-    }`;
+  render(): TokenSeq {
+    return seq(
+      T.PIPE,
+      csl(...this.params.map((p) => p.render())),
+      T.PIPE,
+      T.SPACE,
+      T.ARROW,
+      T.SPACE,
+      this.returnTy.render(),
+      T.SPACE,
+      braces(...this.body.map((b) => b.render()))
+    );
   }
 }
 
@@ -338,14 +361,21 @@ export class IfStmt extends RustAST {
     super();
   }
 
-  render(): string {
-    let res = `if ${this.condition.render()} {
-      ${this.thenBranch.map((b) => b.render()).join('\n')}
-    }`;
+  render(): TokenSeq {
+    let res = seq(
+      T.kw('if'),
+      T.SPACE,
+      this.condition.render(),
+      T.SPACE,
+      braces(...this.thenBranch.map((b) => b.render()))
+    );
     if (this.elseBranch.length > 0) {
-      res += ` else {
-        ${this.elseBranch.map((b) => b.render()).join('\n')}
-      }`;
+      res = res.append(
+        T.SPACE,
+        T.kw('else'),
+        T.SPACE,
+        braces(...this.elseBranch.map((b) => b.render()))
+      );
     }
     return res;
   }
@@ -357,19 +387,14 @@ export class BinOpExpr extends RustAST {
     super();
   }
 
-  render(): string {
-    return `${this.lhs.render()} ${this.op} ${this.rhs.render()}`;
-  }
-}
-
-// None expression node
-export class NoneExpr extends RustAST {
-  constructor() {
-    super();
-  }
-
-  render(): string {
-    return `None`;
+  render(): TokenSeq {
+    return seq(
+      this.lhs.render(),
+      T.SPACE,
+      new Sym(this.op),
+      T.SPACE,
+      this.rhs.render()
+    );
   }
 }
 
