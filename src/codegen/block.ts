@@ -9,10 +9,8 @@ export class Block {
     }
 
     public render(config: RenderConfig): string {
-        return `
-${config.indent}{
+        return `{
 ${this.statements.map(statement => statement.render(config.innerIndent())).join(';\n')}
-${config.indent}}
-`;
+${config.indent}}`;
     }
 }

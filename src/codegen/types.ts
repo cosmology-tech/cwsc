@@ -24,11 +24,9 @@ export class EnumTypeDecl {
     }
 
     public render(config: RenderConfig): string {
-        return `
-${config.indent}pub enum ${this.name} {
+        return `${config.indent}pub enum ${this.name} {
 ${this.variants.map(variant => `${variant.render(config.innerIndent())},`).join('\n')}
-${config.indent}}
-`;
+${config.indent}}`;
     }
 }
 
@@ -91,8 +89,7 @@ export class StructTypeDecl {
 `#[derive(${this.derives.join(', ')})]` : '';
         
         return `${config.indent}${derive}
-${config.indent}pub struct ${this.name} ${this.struct.render(config.innerIndent())
-}`;
+${config.indent}pub struct ${this.name} ${this.struct.render(config)}`;
     }
 }
 

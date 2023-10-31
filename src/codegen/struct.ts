@@ -44,7 +44,7 @@ export class Struct<T extends string | { render(): string }> {
 
     public render(config: RenderConfig): string {
         return `{
-${this.fields.map(field => `${config.indent}${field.render(config)},`).join('\n')}
+${this.fields.map(field => `${config.innerIndent().indent}${field.render(config.innerIndent())},`).join('\n')}
 ${config.indent}}`
     }
 }

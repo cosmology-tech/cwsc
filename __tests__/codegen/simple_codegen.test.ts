@@ -1,6 +1,6 @@
 import { Block } from "../../src/codegen/block";
 import { Contract, Event } from "../../src/codegen/contract"
-import { AssignExpr, BinaryExpr, EndValueExpr, ForExpr, IfExpr, IndexExpr, MethodCallExpr, ReturnExpr, StructExpr, StructPattern, TryExpr, TupleExpr, UnaryExpr } from "../../src/codegen/expression";
+import { AssignExpr, BinaryExpr, CallExpr, EndValueExpr, ForExpr, IfExpr, IndexExpr, MethodCallExpr, ReturnExpr, StructExpr, StructPattern, TryExpr, TupleExpr, UnaryExpr } from "../../src/codegen/expression";
 import { ExprStatement, LocalBinding } from "../../src/codegen/statement";
 import { Field, StructTypeDecl } from "../../src/codegen/types";
 
@@ -72,7 +72,8 @@ describe('Codegen: simple test codegen', () => {
                         new Field('field1', new EndValueExpr('arg1')),
                         new Field('field2', new EndValueExpr('arg2')),
                     )),
-                    new ExprStatement(new MethodCallExpr('callee')),
+                    new ExprStatement(new CallExpr(new EndValueExpr('callee'), new EndValueExpr('arg1'), new EndValueExpr('arg2'))),
+                    new ExprStatement(new MethodCallExpr(new EndValueExpr('arg1'), 'callee', new EndValueExpr('arg2'))),
                     new ExprStatement(new AssignExpr(new EndValueExpr('arg1'), '+=', new EndValueExpr('arg2'))),
                 )
             ))

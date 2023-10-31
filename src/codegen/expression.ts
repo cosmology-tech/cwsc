@@ -26,6 +26,7 @@ export type Expr
     | IndexExpr
     | TupleExpr
     | StructExpr
+    | CallExpr
     | MethodCallExpr
     // Statement-like expressions
     | IfExpr
@@ -128,17 +129,33 @@ export class StructExpr {
     }
 }
 
-export class MethodCallExpr {
-    public callee: string = ''; // path + receiver
-    public args: Expr[] = [];
+export class CallExpr {
+    public callee: Expr;
+    public args: Expr[];
 
-    constructor(callee: string, ...args: Expr[]) {
+    constructor(callee: Expr, ...args: Expr[]) {
         this.callee = callee;
         this.args = args;
     }
 
     public render(config: RenderConfig): string {
-        return `${this.callee}(${this.args.map(arg => arg.render(config)).join(', ')})`;
+        return `${this.callee.render(config)}(${this.args.map(arg => arg.render(config)).join(', ')})`;
+    }
+}
+
+export class MethodCallExpr {
+    public receiver: Expr;
+    public segment: string;
+    public args: Expr[];
+
+    constructor(receiver: Expr, segment: string, ...args: Expr[]) {
+        this.receiver = receiver;
+        this.segment = segment;
+        this.args = args;
+    }
+
+    public render(config: RenderConfig): string {
+        return `${this.receiver.render(config)}.${this.segment}(${this.args.map(arg => arg.render(config)).join(', ')})`;
     }
 }
 
@@ -217,7 +234,7 @@ export class ForExpr {
     }
 
     public render(config: RenderConfig): string { 
-        return `for ${this.binding.render()} in ${this.iter.render(config)} ${this.body.render(config.innerIndent())}`
+        return `for ${this.binding.render()} in ${this.iter.render(config)} ${this.body.render(config)}`
     }
 }
 
