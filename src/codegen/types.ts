@@ -26,8 +26,8 @@ export class EnumTypeDecl {
     public render(config: RenderConfig): string {
         return `
 ${config.indent}pub enum ${this.name} {
-${config.indent}${this.variants.map(variant => variant.render(config.innerIndent())).join('\n')}
-}
+${this.variants.map(variant => variant.render(config.innerIndent())).join(',\n')}
+${config.indent}}
 `;
     }
 }
@@ -39,9 +39,9 @@ export type Variant
 
 export class TupleVariant {
     public name: string = '';
-    public tuple: Tuple<string> = new Tuple();
+    public tuple: Tuple = new Tuple([]);
 
-    constructor(name: string, tuple: Tuple<string>) {
+    constructor(name: string, tuple: Tuple) {
         this.name = name;
         this.tuple = tuple;
     }
@@ -53,21 +53,47 @@ export class TupleVariant {
 
 export class TupleTypeDecl {
     public name: string = '';
-    public 
 }
 
+export class StructVariant {
+    public name: string = '';
+    public struct: Struct = new Struct([]);
+
+    constructor(name: string, fields: Field[]) {
+        this.name = name;
+        this.struct = new Struct(fields);
+    }
+
+    public render(config: RenderConfig): string {
+        return `${config.indent}${this.name} ${this.struct.render(config)}`
+    }
+}
+
+/*
+#[derive(A, B)]
+pub struct StructName {
+    ...
+}
+*/
 export class StructTypeDecl {
     public name: string = '';
     public derives: string[] = [];
-    public struct: Struct<string> = new Struct();
+    public struct: Struct = new Struct([]);
 
-    constructor(name: string, derives: string[], struct: Struct<string>) {
+    constructor(name: string, derives: string[], ...fields: Field[]) {
         this.name = name;
         this.derives = derives;
-        this.struct = struct;
+        this.struct = new Struct(fields); 
     }
 
-
+    public render(config: RenderConfig): string {
+        const derive = this.derives.length ? 
+`#[derive(${this.derives.join(', ')})]` : '';
+        
+        return `${config.indent}${derive}
+${config.indent}pub struct ${this.name} ${this.struct.render(config.innerIndent())
+}`;
+    }
 }
 
 export class UnitVariant {
@@ -78,12 +104,12 @@ export class UnitVariant {
     }
 
     public render(config: RenderConfig): string {
-        return `${config.indent}${this.name},`
+        return `${config.indent}${this.name}`
     }
 }
 
 import { RenderConfig } from "./render";
-import { Struct } from "./struct";
+import { Struct, Tuple } from "./struct";
 
 // #[derive(Debug)]
 // struct A {

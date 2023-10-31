@@ -48,7 +48,7 @@ export class BinaryExpr {
     public left: Expr;
     public right: Expr;
 
-    constructor(op: string, left: Expr, right: Expr) {
+    constructor(left: Expr, op: string, right: Expr) {
         this.op = op;
         this.left = left;
         this.right = right;
