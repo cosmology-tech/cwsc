@@ -4,15 +4,21 @@ import { Field } from "./types";
 // TODO: typify the tuple arguments, string for now
 // Tuple(string, bool)
 // Tuple('asdf', false)
-export class Tuple {
-    public fields: string[] = [];
+export class Tuple<T extends string | { render(): string }> {
+    public fields: T[] = [];
 
-    constructor(fields: string[]) {
+    constructor(fields: T[]) {
         this.fields = fields
     }
 
     public render(): string {
-        return `(${this.fields.join(', ')})`
+        return `(${this.fields.map(field => {
+            if (typeof field == 'string') {
+                return field
+            } else {
+                return field.render()
+            } 
+        }).join(', ')})`
     }
 }
 
@@ -29,20 +35,16 @@ in struct literal:
     b: true,
 }
 */
-export class Struct {
-    public fields: Field[] = [];
+export class Struct<T extends string | { render(): string }> {
+    public fields: Field<T>[] = [];
 
-    constructor(fields: Field[]) {
+    constructor(fields: Field<T>[]) {
         this.fields = fields;
     }
 
     public render(config: RenderConfig): string {
         return `{
-${this.fields.map(field => `${config.innerIndent().indent}${field.render()},`).join('\n')}
+${this.fields.map(field => `${config.indent}${field.render(config)},`).join('\n')}
 ${config.indent}}`
-    }
-
-    public field(name: string, type: string) {
-        this.fields.push(new Field(name, type));
     }
 }

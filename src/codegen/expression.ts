@@ -13,7 +13,9 @@
 // LiteralExpr => Literal
 // BinOpExpr => Binary
 
+import { Block } from "./block";
 import { RenderConfig } from "./render";
+import { Field } from "./types";
 
 
 export type Expr 
@@ -30,6 +32,7 @@ export type Expr
     | AssignExpr
     | ForExpr
     | ReturnExpr
+    | Block
 
 export class EndValueExpr {
     public value: string = '';
@@ -87,13 +90,15 @@ export class TryExpr {
 
 export class IndexExpr {
     public expr: Expr;
+    public args: Expr[];
 
-    constructor(expr: Expr) {
+    constructor(expr: Expr, args: Expr[]) {
         this.expr = expr;
+        this.args = args;
     }
 
     public render(config: RenderConfig): string {
-        return `unimplemented: Index`;
+        return `(${this.expr.render(config)}[${this.args.map(arg => arg.render(config)).join(', ')}])`;
     }
 }
 
@@ -110,8 +115,16 @@ export class TupleExpr {
 }
 
 export class StructExpr {
-    public render(): string {
-        return `unimplemented: Struct`;
+    public name: string = '';
+    public fields: Field<Expr>[] = [];
+
+    constructor(name: string, ...fields: Field<Expr>[]) {
+        this.name = name;
+        this.fields = fields;
+    }
+
+    public render(config: RenderConfig): string {
+        return `${this.name}{ ${this.fields.map(field => field.render(config)).join(', ')} }`
     }
 }
 
@@ -141,13 +154,7 @@ export class IfExpr {
     }
 
     public render(config: RenderConfig): string {
-        return `
-${config.indent}if ${this.cond.render(config)} {
-${this.then.render(config.innerIndent())}
-${config.indent}} else {
-${this.else.render(config.innerIndent())}
-${config.indent}}
-`;
+        return `if ${this.cond.render(config)} ${this.then.render(config.innerIndent())} else ${this.else.render(config.innerIndent())}`;
     }
 }
 
@@ -167,9 +174,50 @@ export class AssignExpr {
     }
 }
 
-export class ForExpr {
+export type Pattern 
+    = IdentPattern
+    | StructPattern
+
+export class IdentPattern {
+    public name: string;
+
+    constructor(name: string) {
+        this.name = name;
+    }
+
     public render(): string {
-        return `unimplemented: For`;
+        return this.name;
+    }
+}
+
+export class StructPattern {
+    public name: string;
+    public fields: string[];
+
+    constructor(name: string, ...fields: string[]) {
+        this.name = name;
+        this.fields = fields;
+    }
+
+    public render(): string {
+        // ignore undeclared field with rest pattern(..)
+        return `${this.name}{ ${this.fields.join(', ')}, .. }`
+    }
+}
+
+export class ForExpr {
+    public binding: Pattern;
+    public iter: Expr;
+    public body: Block;
+
+    constructor(binding: Pattern, iter: Expr, body: Block) {
+        this.binding = binding;
+        this.iter = iter;
+        this.body = body;
+    }
+
+    public render(config: RenderConfig): string { 
+        return `for ${this.binding.render()} in ${this.iter.render(config)} ${this.body.render(config.innerIndent())}`
     }
 }
 
@@ -181,6 +229,6 @@ export class ReturnExpr {
     }
 
     public render(config: RenderConfig): string {
-        return `${config.indent}return ${this.expr.render(config)}`;
+        return `return ${this.expr.render(config)}`;
     }
 }

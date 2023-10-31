@@ -5,11 +5,11 @@ import { Field } from "./types";
 
 export class Fn {
     public name: string = '';
-    public args: Field[] = [];
+    public args: Field<string>[] = [];
     public returntype: string = '';
     public body: Block = new Block();
 
-    constructor(name: string, args: Field[], returntype: string, ...body: Statement[]) {
+    constructor(name: string, args: Field<string>[], returntype: string, ...body: Statement[]) {
         this.name = name;
         this.args = args;
         this.returntype = returntype;
@@ -21,10 +21,8 @@ export class Fn {
     }
 
     public render(config: RenderConfig): string {
-        return `
-${config.indent}pub fn ${this.name}(${this.args.map(arg => arg.render()).join(', ')}) -> ${this.returntype} {
+        return `${config.indent}pub fn ${this.name}(${this.args.map(arg => arg.render(config)).join(', ')}) -> ${this.returntype} {
 ${this.body.statements.map(statement => statement.render(config.innerIndent())).join('\n')}
-${config.indent}}
-`
+${config.indent}}`
     }
 }

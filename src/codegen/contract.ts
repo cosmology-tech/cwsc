@@ -28,7 +28,7 @@ export class Contract {
         this._errors.push(new Error(name))
     }
 
-    public state(...fields: Field[]) {
+    public state(...fields: Field<string>[]) {
         this._state = new StructTypeDecl(
             'State',
             [], // TODO: derives
@@ -40,13 +40,13 @@ export class Contract {
         this._structs.push(struct)
     }
 
-    public instantiate(args: Field[], returntype: string, body: Statement[]) {
+    public instantiate(args: Field<string>[], returntype: string, body: Statement[]) {
         // TODO: instantiate args should have cosmwasm context
 
         this._instantiate = new Fn('instantiate', args, returntype, ...body);
     }
 
-    public execute(name: string, args: Field[], returntype: string, body: Statement[]) {
+    public execute(name: string, args: Field<string>[], returntype: string, body: Statement[]) {
         this._executes.push(new Fn(
             name,
             args,
@@ -55,7 +55,7 @@ export class Contract {
         ))
     }
 
-    public query(name: string, args: Field[], returntype: string, body: Statement[]) {
+    public query(name: string, args: Field<string>[], returntype: string, body: Statement[]) {
         this._queries.push(new Fn(
             name,
             args,
@@ -70,11 +70,17 @@ export class Contract {
         return `
 pub mod ${this._name} {
 ${config.indent}${this.renderEvents(config.innerIndent())}
+
 ${config.indent}${this.renderState(config.innerIndent())}
+
 ${config.indent}${this.renderErrors(config.innerIndent())}
+
 ${config.indent}${this.renderStructs(config.innerIndent())}
+
 ${config.indent}${this.renderInstantiate(config.innerIndent())}
+
 ${config.indent}${this.renderExecutes(config.innerIndent())}
+
 ${config.indent}${this.renderQueries(config.innerIndent())}
 }
 `;
@@ -107,21 +113,19 @@ ${config.indent}${this.renderQueries(config.innerIndent())}
     private renderExecutes(config: RenderConfig): string {
         return `${config.indent}mod Execute {
 ${this._executes.map(execute => execute.render(config.innerIndent())).join('\n')}
-${config.indent}}
-`
+${config.indent}}`
     }
 
     private renderQueries(config: RenderConfig): string {
         return `${config.indent}mod Query {
-${this._executes.map(execute => execute.render(config.innerIndent())).join('\n')}
-${config.indent}}
-`
+${this._queries.map(query => query.render(config.innerIndent())).join('\n')}
+${config.indent}}`
     }
 }
 
 export class Event {
     public name: string = '';
-    public fields: Field[] = [];
+    public fields: Field<string>[] = [];
 
     constructor(name: string) {
         this.name = name;

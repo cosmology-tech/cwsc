@@ -19,7 +19,7 @@ import { RenderConfig } from "./render";
 // FailStmt => Expr(Return)
 export type Statement
     = LocalBinding
-    | Expr
+    | ExprStatement
 
 export class LocalBinding {
     public name: string = '';
@@ -36,5 +36,17 @@ export class LocalBinding {
 
     public render(config: RenderConfig): string {
         return `${config.indent}${this.mutable ? 'let mut ' : 'let '}${this.name}${this.type?`: ${this.type}`:''} = ${this.value.render(config)};`;
+    }
+}
+
+export class ExprStatement {
+    public value: Expr;
+
+    constructor(value: Expr) {
+        this.value = value;
+    }
+
+    public render(config: RenderConfig): string {
+        return `${config.indent}${this.value.render(config)}`;
     }
 }

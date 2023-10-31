@@ -26,7 +26,7 @@ export class EnumTypeDecl {
     public render(config: RenderConfig): string {
         return `
 ${config.indent}pub enum ${this.name} {
-${this.variants.map(variant => variant.render(config.innerIndent())).join(',\n')}
+${this.variants.map(variant => `${variant.render(config.innerIndent())},`).join('\n')}
 ${config.indent}}
 `;
     }
@@ -39,9 +39,9 @@ export type Variant
 
 export class TupleVariant {
     public name: string = '';
-    public tuple: Tuple = new Tuple([]);
+    public tuple: Tuple<string> = new Tuple([]);
 
-    constructor(name: string, tuple: Tuple) {
+    constructor(name: string, tuple: Tuple<string>) {
         this.name = name;
         this.tuple = tuple;
     }
@@ -57,9 +57,9 @@ export class TupleTypeDecl {
 
 export class StructVariant {
     public name: string = '';
-    public struct: Struct = new Struct([]);
+    public struct: Struct<string> = new Struct([]);
 
-    constructor(name: string, fields: Field[]) {
+    constructor(name: string, fields: Field<string>[]) {
         this.name = name;
         this.struct = new Struct(fields);
     }
@@ -78,9 +78,9 @@ pub struct StructName {
 export class StructTypeDecl {
     public name: string = '';
     public derives: string[] = [];
-    public struct: Struct = new Struct([]);
+    public struct: Struct<string> = new Struct([]);
 
-    constructor(name: string, derives: string[], ...fields: Field[]) {
+    constructor(name: string, derives: string[], ...fields: Field<string>[]) {
         this.name = name;
         this.derives = derives;
         this.struct = new Struct(fields); 
@@ -121,35 +121,17 @@ import { Struct, Tuple } from "./struct";
 
 
 // name: string
-export class Field {
+export class Field<T extends string | { render(config: RenderConfig): string }> {
     public name: string = '';
-    public type: string = ''; // TODO
+    public value: T;
 
-    constructor(name: string, type: string) {
+    constructor(name: string, value: T) {
         this.name = name;
-        this.type = type;
+        this.value = value;
     }
 
-    public render(): string {
-        return `${this.name}: ${this.type}`
-    }
-}
-
-
-export class NamedTuple {
-    public name: string = '';
-    public fields: Field[] = [];
-
-    constructor(name: string) {
-        this.name = name;
-    }
-
-    public field(name: string, type: string) {
-        this.fields.push(new Field(name, type));
-    }
-
-    public render(): string {
-        return `${this.name}(${this.fields.map(field => field.render()).join(', ')})`
+    public render(config: RenderConfig): string {
+        return `${this.name}: ${typeof this.value == 'string' ? this.value : this.value.render(config)}`
     }
 }
 
