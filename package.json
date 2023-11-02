@@ -50,7 +50,7 @@
     "singleQuote": true,
     "trailingComma": "es5"
   },
-  "author": "Terran One LLC",
+  "author": "William Chen",
   "module": "dist/cwsc.esm.js",
   "oclif": {
     "bin": "cwsc",
