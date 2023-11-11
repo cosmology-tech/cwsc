@@ -1,6 +1,8 @@
 import { RenderConfig } from "./render";
 import { Statement } from "./statement";
 
+
+
 export class Block {
     public statements: Statement[] = [];
 
