@@ -1,0 +1,99 @@
+contract ZeroToHero {
+  
+  state {
+    config: struct Config {
+      admin: Addr
+    },
+    polls[String]: struct Poll {
+      creator: Addr,
+      question: String,
+      options: List[[String, U64]]
+    }? = None, // defaults to None
+    ballots[Addr, String]: struct Ballot {
+      option: String
+    }? = None // default to None
+  }
+
+  #instantiate(admin?: String) {
+    let admin = admin! else $info.sender;
+    let validated_admin = Addr.validate!(admin);
+    let config = Config {
+      admin: validated_admin
+    };
+    $state.config = config;
+    emit event(action="instantiate", admin=validated_admin);
+  }
+
+  exec #create_poll(poll_id: String, question: String, options: List[String]) {
+    if options.len() > 10 {
+      fail! TooManyOptions()
+    }
+    
+    let opts = List[[String, U64]]();
+    for option in options {
+      opts.push([option, 0]);
+    }
+
+    let poll = Poll {
+      creator: $info.sender,
+      question,
+      options: opts
+    };
+
+    $state.polls[poll_id] = poll;
+  }
+
+  exec #vote(poll_id: String, vote: String) {
+    let poll = $state.polls[poll_id];
+    if poll? {
+      let ballot = $state.ballots[[$info.sender, poll_id]];
+      if ballot? {
+        // find position of old vote (note this fails if unwrapping while none)
+        let position_of_old_vote = poll.options.findIndex(|option| option[0] == ballot.option)!;
+        poll.options[position_of_old_vote][1] -= 1;
+        $state.ballots[[$info.sender, poll_id]] = Ballot {
+          option: vote
+        };
+      } else {
+        $state.ballots[[$info.sender, poll_id]] = Ballot {
+          option: vote
+        };
+      }
+
+      // find the position of the new vote option and increment it by 1
+      let position = poll.options.findIndex(|option| option[0] == vote);
+      if position == None {
+        fail! Unauthorized();
+      }
+      poll.options[position][1] += 1;
+      $state.polls[poll_id] = poll; // save the update
+    } else {
+      fail! Unauthorized()
+    }
+  }
+
+  query #all_polls() {
+    let polls = $state.polls
+      .range(None, None, Order.#Ascending)
+      .map(|p| p![1]);
+
+    return {
+      polls
+    }
+  }
+
+  query #poll(poll_id: String) {
+    let poll = $state.polls[poll_id];
+    return {
+      poll
+    }
+  }
+
+  query #vote(poll_id: String, address: String) {
+    let validated_address = Addr.validate!(address);
+    let vote = $state.ballots[[validated_address, poll_id]]!;
+    return {
+      vote 
+    }
+  }
+}

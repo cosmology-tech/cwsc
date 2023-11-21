@@ -51,6 +51,7 @@ describe('Interpreter: TerraswapToken', () => {
         ),
       ]),
     });
+
     let instantiateMsg = TerraswapToken.instantiate(instantiateArgs);
     // call the instantiate implementation
 

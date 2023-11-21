@@ -88,14 +88,14 @@ contract TerraswapToken implements CW20 {
 
   struct MinterData {
   	minter: Address,
-	cap?: U128
+    cap?: U128
   }
 
   struct TokenInfo {
      name: String,
      symbol: String,
      decimals: U8,
-     total_supply: U128,
+     total_supply: Int,
      mint?: MinterData
   }
 
@@ -161,7 +161,7 @@ contract TerraswapToken implements CW20 {
     }
 
     if mint? {
-	  let mint = MinterData(Address!(mint.minter), mint.cap)
+      let mint = MinterData(Address!(mint.minter), mint.cap)
     }
     $state.token_info = TokenInfo(name, symbol, decimals, total_supply, mint)
   }
