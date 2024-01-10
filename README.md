@@ -222,6 +222,7 @@ contract AtomicOrderExample extends CW2 {
   }
 
 }
+```
 
 Disclaimer:
 
